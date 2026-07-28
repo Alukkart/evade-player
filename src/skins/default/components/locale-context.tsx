@@ -2,29 +2,45 @@
 
 /* eslint-disable react-refresh/only-export-components */
 
-import {createContext, useContext, type ReactNode} from 'react';
+import {createContext, useContext, useMemo, type ReactNode} from 'react';
 import type {Locale, LocaleStrings} from '../locales';
-import {localeRu, localeEn} from '../locales';
+import {DEFAULT_LOCALE, resolveLocaleStrings} from '../locales';
 
 interface LocaleContextValue {
     locale: Locale;
     strings: LocaleStrings;
 }
 
-const LOCALE_STRINGS: Record<Locale, LocaleStrings> = {
-    ru: localeRu,
-    en: localeEn,
-};
+const LocaleContext = createContext<LocaleContextValue>({
+    locale: DEFAULT_LOCALE,
+    strings: resolveLocaleStrings(DEFAULT_LOCALE),
+});
 
-const LocaleContext = createContext<LocaleContextValue>({locale: 'ru', strings: LOCALE_STRINGS.ru});
+export interface LocaleProviderProps {
+    /**
+     * Locale tag. Built-in: `"en"` (default), `"ru"`. Any tag passed to
+     * `registerLocale` also works. Unknown tags fall back to `DEFAULT_LOCALE`.
+     */
+    locale?: Locale;
+    /**
+     * Overrides for individual strings, merged over the resolved locale. Handy
+     * for one-off wording changes or an unregistered language.
+     */
+    strings?: Partial<LocaleStrings>;
+    children: ReactNode;
+}
 
-export function LocaleProvider({locale, children}: {locale?: Locale; children: ReactNode}): ReactNode {
-    const resolved: Locale = locale ?? 'en';
-    return (
-        <LocaleContext.Provider value={{locale: resolved, strings: LOCALE_STRINGS[resolved]}}>
-            {children}
-        </LocaleContext.Provider>
-    );
+export function LocaleProvider({locale, strings, children}: LocaleProviderProps): ReactNode {
+    const value = useMemo<LocaleContextValue>(() => {
+        const resolved = locale ?? DEFAULT_LOCALE;
+        const base = resolveLocaleStrings(resolved);
+        return {
+            locale: resolved,
+            strings: strings ? {...base, ...strings} : base,
+        };
+    }, [locale, strings]);
+
+    return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
 export function useLocale(): LocaleContextValue {

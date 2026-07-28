@@ -38,10 +38,10 @@ export const localeEn: LocaleStrings = {
     selectorEpisode: 'Episode',
     selectorVoiceover: 'Voiceover',
 
-    qualityTrack: 'Track',
+    qualityTrack: 'Quality {index}',
 
     subtitlesOff: 'Off',
-    subtitlesTrack: 'Subtitles',
+    subtitlesTrack: 'Track {index}',
 
     fragmentOpening: 'Opening',
     fragmentEnding: 'Ending',

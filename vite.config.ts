@@ -9,7 +9,13 @@ export default defineConfig({
         dts({
             tsconfigPath: resolve(__dirname, 'tsconfig.app.json'),
             entryRoot: resolve(__dirname, 'src'),
-            exclude: ['src/main.tsx', 'src/app.tsx'],
+            exclude: [
+                'src/main.tsx',
+                'src/app.tsx',
+                'src/**/*.test.ts',
+                'src/**/*.test.tsx',
+                'src/test-utils/**',
+            ],
         }),
     ],
     publicDir: false,

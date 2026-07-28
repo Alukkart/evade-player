@@ -56,14 +56,32 @@ export {
   applyNormalization,
   resumeOnUserInteraction,
   setMediaElement,
+  releaseMediaElement,
   getAudioChainDebugInfo,
 } from './skins/default/components/audio-chain';
 export type { AudioChainDebugInfo } from './skins/default/components/audio-chain';
 
 export { LocaleProvider } from './skins/default/components/locale-context';
+export type { LocaleProviderProps } from './skins/default/components/locale-context';
+
 export {
+  DEFAULT_LOCALE,
   getFragmentLabel,
+  hasLocale,
+  listLocales,
+  registerLocale,
+  resolveLocaleStrings,
+  formatLocaleString,
+  resolveLocalizedLabel,
+  localeEn,
+  localeRu,
   FRAGMENT_LABELS_RU,
   FRAGMENT_LABELS_EN,
 } from './skins/default/locales';
-export type { Locale } from './skins/default/locales';
+export type {
+  BuiltinLocale,
+  Locale,
+  LocaleStrings,
+  LocaleStringKey,
+  LocalizableLabel,
+} from './skins/default/locales';

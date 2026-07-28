@@ -54,7 +54,7 @@ import {PlaybackStateManager} from './components/playback-state-manager';
 import {NextEpisodePrompt} from './components/next-episode-prompt';
 import {FragmentMarkers, SkipFragmentButton} from './components/fragment-controls';
 import {FragmentSettingsProvider} from './components/fragment-settings-context';
-import {type Locale} from './locales';
+import {type Locale, type LocaleStrings} from './locales';
 import {LocaleProvider, useLocaleStrings} from './components/locale-context';
 import {LayoutIndependentHotkeys} from './components/layout-independent-hotkeys';
 
@@ -200,8 +200,17 @@ export interface VideoPlayerProps {
     fragments?: Fragment[];
     /** Default auto-skip settings for fragment types. */
     fragmentSettings?: Partial<FragmentSettings>;
-    /** UI language (`"ru"` or `"en"`). Defaults to `"ru"`. */
+    /**
+     * UI language. Built in: `"en"` (default) and `"ru"`. Any tag registered
+     * with `registerLocale` also works; unknown tags fall back to English.
+     */
     locale?: Locale;
+    /**
+     * Overrides for individual UI strings, merged over the active locale. Use
+     * this to reword a few labels or to supply a language you have not
+     * registered globally.
+     */
+    localeStrings?: Partial<LocaleStrings>;
 }
 
 interface StoryboardThumbnailApiItem {
@@ -283,6 +292,7 @@ export function VideoPlayer({
     fragments,
     fragmentSettings: fragmentSettingsProp,
     locale,
+    localeStrings,
     ...rest
 }: VideoPlayerProps): ReactNode {
     const resolvedSeason: string | undefined = currentSeason ?? extractSeasonFromEpisode(currentEpisode);
@@ -342,7 +352,7 @@ export function VideoPlayer({
 
     return (
         <Player.Provider>
-            <LocaleProvider locale={locale}>
+            <LocaleProvider locale={locale} strings={localeStrings}>
             <FragmentSettingsProvider initialSettings={fragmentSettingsProp}>
             <CaptionLineOffset/>
             <Container className={`media-default-skin media-default-skin--video ${className ?? ''}`} {...rest}>

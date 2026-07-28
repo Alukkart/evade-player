@@ -1,6 +1,13 @@
 import type {FragmentType} from '../types';
 
-export type Locale = 'ru' | 'en';
+/** Locales shipped with the player. */
+export type BuiltinLocale = 'en' | 'ru';
+
+/**
+ * A locale tag. Built-in locales are suggested by autocomplete, but any string
+ * works once registered via `registerLocale`.
+ */
+export type Locale = BuiltinLocale | (string & {});
 
 export interface LocaleStrings {
     commonAuto: string;
@@ -115,6 +122,48 @@ export interface LocaleStrings {
 
     sleepTimerOff: string;
     sleepTimerMinutes: string;
+}
+
+/** Any key of the string table — used to tag player-generated labels. */
+export type LocaleStringKey = keyof LocaleStrings;
+
+/**
+ * Substitutes `{placeholder}` tokens in a locale string.
+ *
+ * Unknown placeholders are left untouched, so a translation that forgets one
+ * degrades to visible `{token}` text rather than `undefined`.
+ */
+export function formatLocaleString(
+    template: string,
+    params?: Record<string, string | number>
+): string {
+    if (!params) return template;
+    return template.replace(/\{(\w+)\}/g, (match, token: string) => {
+        const value = params[token];
+        return value === undefined ? match : String(value);
+    });
+}
+
+/**
+ * Describes a label that the player generated itself (as opposed to one the
+ * consumer supplied), so the UI can translate it at render time.
+ */
+export interface LocalizableLabel {
+    /** Untranslated fallback, kept for consumers reading options directly. */
+    label: string;
+    /** Locale key to render instead of `label`. */
+    labelKey?: LocaleStringKey;
+    /** Values interpolated into the `labelKey` template. */
+    labelParams?: Record<string, string | number>;
+}
+
+/**
+ * Resolves the text to display for an option, preferring the translation over
+ * the untranslated `label`.
+ */
+export function resolveLocalizedLabel(option: LocalizableLabel, t: LocaleStrings): string {
+    if (!option.labelKey) return option.label;
+    return formatLocaleString(t[option.labelKey], option.labelParams);
 }
 
 // --- Option label resolvers ---
@@ -238,23 +287,12 @@ export function getFullscreenScaleLabel(value: string, t: LocaleStrings): string
 
 export function getSleepTimerLabel(value: string, t: LocaleStrings): string {
     if (value === 'off') return t.sleepTimerOff;
-    return t.sleepTimerMinutes.replace('{minutes}', value);
+    return formatLocaleString(t.sleepTimerMinutes, {minutes: value});
 }
 
-export const FRAGMENT_LABELS_RU: Record<FragmentType, string> = {
-    opening: 'Опенинг',
-    ending: 'Эндинг',
-    preview: 'Заставка',
-    compilation: 'Компиляция',
+export const FRAGMENT_LABEL_KEYS: Record<FragmentType, keyof LocaleStrings> = {
+    opening: 'fragmentOpening',
+    ending: 'fragmentEnding',
+    preview: 'fragmentPreview',
+    compilation: 'fragmentCompilation',
 };
-
-export const FRAGMENT_LABELS_EN: Record<FragmentType, string> = {
-    opening: 'Opening',
-    ending: 'Ending',
-    preview: 'Preview',
-    compilation: 'Recap',
-};
-
-export function getFragmentLabel(type: FragmentType, locale: Locale): string {
-    return locale === 'en' ? FRAGMENT_LABELS_EN[type] : FRAGMENT_LABELS_RU[type];
-}

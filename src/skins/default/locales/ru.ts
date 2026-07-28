@@ -38,10 +38,10 @@ export const localeRu: LocaleStrings = {
     selectorEpisode: 'Серия',
     selectorVoiceover: 'Озвучка',
 
-    qualityTrack: 'Дорожка',
+    qualityTrack: 'Качество {index}',
 
     subtitlesOff: 'Выкл',
-    subtitlesTrack: 'Субтитры',
+    subtitlesTrack: 'Дорожка {index}',
 
     fragmentOpening: 'Опенинг',
     fragmentEnding: 'Эндинг',

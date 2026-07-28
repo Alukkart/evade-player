@@ -35,8 +35,17 @@ import {
 import {applyVolumeBoost, applyNormalization} from './audio-chain';
 import {loadPlayerSettings, savePlayerSettings} from '../utils/settings-persistence';
 import {useFragmentSettings} from './fragment-settings-context';
-import {getFragmentLabel, getVolumeBoostLabel, getNormalizationLabel, getFullscreenScaleLabel, getSleepTimerLabel} from '../locales';
-import {useLocale, useLocaleStrings} from './locale-context';
+import {
+    getFragmentLabel,
+    getVolumeBoostLabel,
+    getNormalizationLabel,
+    getFullscreenScaleLabel,
+    getSleepTimerLabel,
+    resolveLocalizedLabel,
+    type LocalizableLabel,
+    type LocaleStrings,
+} from '../locales';
+import {useLocaleStrings} from './locale-context';
 import {
     buildQualityMenuOptions,
     getActiveSubtitleValue,
@@ -50,6 +59,17 @@ import {
 
 function isMenuActionKey(key: string): boolean {
     return key === 'Enter' || key === ' ';
+}
+
+/** Localized label of the currently selected option, or `fallback` if none matches. */
+function activeOptionLabel<T extends LocalizableLabel & {value: string}>(
+    options: readonly T[],
+    value: string,
+    t: LocaleStrings,
+    fallback: string
+): string {
+    const active = options.find((option) => option.value === value);
+    return active ? resolveLocalizedLabel(active, t) : fallback;
 }
 
 function formatSleepTimerRemaining(ms: number): string {
@@ -231,7 +251,6 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
     }, [subtitleAppearance]);
 
     const t = useLocaleStrings();
-    const {locale} = useLocale();
     const {settings: fragmentSettings, updateSettings} = useFragmentSettings();
 
     const qualityValue = resolveActiveQualityValue(qualityOptions, source, masterSource);
@@ -348,7 +367,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                                     <Gauge className="media-icon"/>
                                     <span>{t.settingsQuality}</span>
                                 </span>
-                                <span>{qualityOptions.find((option) => option.value === qualityValue)?.label ?? t.commonAuto}</span>
+                                <span>{activeOptionLabel(qualityOptions, qualityValue, t, t.commonAuto)}</span>
                             </div>
                         )}
                         {subtitleOptions.length > 1 && (
@@ -363,7 +382,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                                     <Captions className="media-icon"/>
                                     <span>{t.settingsSubtitles}</span>
                                 </span>
-                                <span>{subtitleOptions.find((option) => option.value === subtitleValue)?.label ?? t.subtitlesOff}</span>
+                                <span>{activeOptionLabel(subtitleOptions, subtitleValue, t, t.subtitlesOff)}</span>
                             </div>
                         )}
                         {speedOptions.length > 1 && (
@@ -440,6 +459,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                 {view === 'quality' && (
                     <div className="media-menu__submenu">
                         <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                              onClick={() => navigateTo('root')}
                              onKeyDown={(event) => {
                                  if (!isMenuActionKey(event.key)) return;
@@ -455,7 +475,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                                          label={t.settingsVideoQuality}>
                             {qualityOptions.map((option) => (
                                 <Menu.RadioItem key={option.value} className="media-menu__item" value={option.value}>
-                                    <span>{option.label}</span>
+                                    <span>{resolveLocalizedLabel(option, t)}</span>
                                     <Menu.ItemIndicator checked={option.value === qualityValue} forceMount className="media-menu__indicator">
                                         <Check className="media-icon"/>
                                     </Menu.ItemIndicator>
@@ -467,6 +487,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                 {view === 'subtitles' && (
                     <div className="media-menu__submenu">
                         <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                              onClick={() => navigateTo('root')}
                              onKeyDown={(event) => {
                                  if (!isMenuActionKey(event.key)) return;
@@ -482,7 +503,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                                          onValueChange={onSubtitleChange} label={t.settingsSubtitles}>
                             {subtitleOptions.map((option) => (
                                 <Menu.RadioItem key={option.value} className="media-menu__item" value={option.value}>
-                                    <span>{option.label}</span>
+                                    <span>{resolveLocalizedLabel(option, t)}</span>
                                     <Menu.ItemIndicator checked={option.value === subtitleValue} forceMount className="media-menu__indicator">
                                         <Check className="media-icon"/>
                                     </Menu.ItemIndicator>
@@ -516,6 +537,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                 {view === 'audio' && (
                     <div className="media-menu__submenu">
                         <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                              onClick={() => navigateTo('root')}
                              onKeyDown={(event) => {
                                  if (!isMenuActionKey(event.key)) return;
@@ -587,6 +609,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                 {view === 'speed' && (
                     <div className="media-menu__submenu">
                         <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                              onClick={() => navigateTo('root')}
                              onKeyDown={(event) => {
                                  if (!isMenuActionKey(event.key)) return;
@@ -615,6 +638,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                 {view === 'fullscreen-scale' && (
                     <div className="media-menu__submenu">
                         <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                              onClick={() => navigateTo('root')}
                              onKeyDown={(event) => {
                                  if (!isMenuActionKey(event.key)) return;
@@ -643,6 +667,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                 {view === 'sleep-timer' && (
                     <div className="media-menu__submenu">
                         <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                              onClick={() => navigateTo('root')}
                              onKeyDown={(event) => {
                                  if (!isMenuActionKey(event.key)) return;
@@ -671,6 +696,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                 {view === 'fragments' && (
                     <div className="media-menu__submenu">
                         <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                              onClick={() => navigateTo('root')}
                              onKeyDown={(event) => {
                                  if (!isMenuActionKey(event.key)) return;
@@ -702,7 +728,7 @@ export function SettingsMenu({qualities, masterSource}: { qualities?: QualityOpt
                                          }}>
                                         <span className="media-settings__label">
                                             <span className="media-fragment-dot" style={{backgroundColor: FRAGMENT_COLORS[type]}}/>
-                                            <span>{getFragmentLabel(type, locale)}</span>
+                                            <span>{getFragmentLabel(type, t)}</span>
                                         </span>
                                         <span className="media-settings__toggle-track" data-checked={checked || undefined}>
                                             <span className="media-settings__toggle-thumb"/>

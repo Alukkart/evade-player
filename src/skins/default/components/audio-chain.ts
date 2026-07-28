@@ -55,10 +55,9 @@ class AudioChainManager {
             return;
         }
 
-        if (this.mediaElement && this.mediaElement !== realElement) {
-            return;
-        }
-
+        // First element wins: the chain is a module-level singleton, so with two
+        // players on one page only the first gets audio processing. Call
+        // releaseMediaElement() on unmount so the next player can bind.
         if (this.mediaElement) {
             return;
         }
@@ -68,6 +67,25 @@ class AudioChainManager {
         if (this.pendingVolumeFactor !== 1 || this.pendingNormalizationLevel !== 'off') {
             this.ensureChain();
         }
+    }
+
+    /**
+     * Unbinds the chain so a later media element can take over.
+     *
+     * Pass the element being torn down to make this a no-op when some other
+     * player owns the chain; omit it to release unconditionally. Pending volume
+     * and normalization are kept, so a remounted player re-applies them.
+     */
+    releaseMediaElement(element?: unknown): void {
+        if (element !== undefined) {
+            const realElement = this.extractMediaElement(element);
+            if (!realElement || this.mediaElement !== realElement) {
+                return;
+            }
+        }
+
+        this.cleanup();
+        this.mediaElement = null;
     }
 
     applyVolumeBoost(factor: number): void {
@@ -196,9 +214,17 @@ class AudioChainManager {
     }
 
     private cleanup(): void {
+        for (const node of [this.source, this.compressorNode, this.gainNode]) {
+            try {
+                node?.disconnect();
+            } catch {
+                // Node may already be detached.
+            }
+        }
+
         if (this.ctx) {
             try {
-                this.ctx.close();
+                void this.ctx.close();
             } catch {
                 // ignore
             }
@@ -262,6 +288,10 @@ export function resumeOnUserInteraction(): void {
 
 export function setMediaElement(element: unknown): void {
     manager.setMediaElement(element);
+}
+
+export function releaseMediaElement(element?: unknown): void {
+    manager.releaseMediaElement(element);
 }
 
 export function getAudioChainDebugInfo(): AudioChainDebugInfo {

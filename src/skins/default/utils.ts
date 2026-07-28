@@ -1,5 +1,6 @@
 import {isValidElement} from 'react';
 import type {RenderProp} from '@videojs/react';
+import type {LocalizableLabel} from './locales/strings';
 import {
     AUTO_QUALITY_VALUE,
     type QualityMenuOption,
@@ -27,7 +28,7 @@ export function getQualityOptions(qualities: QualityOption[] | undefined, source
     }
 
     if (source && !map.has(source)) {
-        map.set(source, {label: 'Auto', src: source});
+        map.set(source, {label: 'Auto', labelKey: 'commonAuto', src: source});
     }
 
     return [...map.values()];
@@ -54,10 +55,9 @@ export function parseHlsMasterPlaylist(masterSrc: string, content: string): Qual
 
         const attrs = parseM3u8Attributes(line.slice('#EXT-X-STREAM-INF:'.length));
         if (!hasAudioInStreamAttributes(attrs)) continue;
-        const label = getQualityLabel(attrs, options.length);
 
         seen.add(streamUrl);
-        options.push({label, src: streamUrl});
+        options.push({...getQualityLabel(attrs, options.length), src: streamUrl});
     }
 
     return options;
@@ -79,28 +79,34 @@ function parseM3u8Attributes(raw: string): Record<string, string> {
 
     while ((match = regex.exec(raw)) !== null) {
         const key = match[1];
+        if (!key) continue;
         attrs[key] = match[2]?.replace(/^"|"$/g, '') ?? '';
     }
 
     return attrs;
 }
 
-function getQualityLabel(attrs: Record<string, string>, index: number): string {
+function getQualityLabel(attrs: Record<string, string>, index: number): LocalizableLabel {
     const resolution = attrs.RESOLUTION;
     if (resolution && resolution.includes('x')) {
         const height = Number(resolution.split('x')[1]);
         if (Number.isFinite(height)) {
-            return `${height}p`;
+            return {label: `${height}p`};
         }
     }
 
     const bandwidth = Number(attrs.BANDWIDTH);
     if (Number.isFinite(bandwidth) && bandwidth > 0) {
         const mbps = bandwidth / 1_000_000;
-        return `${mbps.toFixed(mbps >= 10 ? 0 : 1)} Mbps`;
+        return {label: `${mbps.toFixed(mbps >= 10 ? 0 : 1)} Mbps`};
     }
 
-    return `Quality ${index + 1}`;
+    // No resolution or bitrate to name the variant by — fall back to an index.
+    return {
+        label: `Quality ${index + 1}`,
+        labelKey: 'qualityTrack',
+        labelParams: {index: index + 1},
+    };
 }
 
 function normalizeQualityLabel(label: string): string {
@@ -124,12 +130,12 @@ function resolvePlaylistUrl(masterSrc: string, uri: string): string {
 function sortByQuality(a: QualityMenuOption, b: QualityMenuOption): number {
     const extractHeight = (label: string): number => {
         const match = label.match(/^(\d+)[pP]/);
-        return match ? parseInt(match[1], 10) : 0;
+        return match?.[1] ? parseInt(match[1], 10) : 0;
     };
 
     const extractBitrate = (label: string): number => {
         const match = label.match(/^([\d.]+)\s*Mbps/);
-        return match ? parseFloat(match[1]) : 0;
+        return match?.[1] ? parseFloat(match[1]) : 0;
     };
 
     const aHeight = extractHeight(a.label);
@@ -156,7 +162,12 @@ export function buildQualityMenuOptions(options: QualityOption[], masterSource: 
         .sort(sortByQuality);
 
     if (isHlsSource(masterSource)) {
-        menuOptions.unshift({label: 'Auto', src: masterSource, value: AUTO_QUALITY_VALUE});
+        menuOptions.unshift({
+            label: 'Auto',
+            labelKey: 'commonAuto',
+            src: masterSource,
+            value: AUTO_QUALITY_VALUE,
+        });
     }
 
     return menuOptions;
@@ -167,24 +178,33 @@ export function resolveActiveQualityValue(
     source: string | null,
     masterSource: string
 ): string {
-    if (!source) return options[0]?.value;
     if (source === masterSource) return AUTO_QUALITY_VALUE;
 
-    const exact = options.find((option) => option.src === source);
-    if (exact) return exact.value;
+    if (source) {
+        const exact = options.find((option) => option.src === source);
+        if (exact) return exact.value;
+    }
 
-    return options[0].value;
+    // Progressive sources with no variants produce an empty option list.
+    return options[0]?.value ?? AUTO_QUALITY_VALUE;
 }
 
 export function getSubtitleOptions(media: HTMLMediaElement | null): SubtitleOption[] {
-    const options: SubtitleOption[] = [{value: SUBTITLES_OFF_VALUE, label: 'Off'}];
+    const options: SubtitleOption[] = [
+        {value: SUBTITLES_OFF_VALUE, label: 'Off', labelKey: 'subtitlesOff'},
+    ];
     if (!media?.textTracks) return options;
 
     Array.from(media.textTracks).forEach((track, index) => {
         if (track.kind !== 'subtitles' && track.kind !== 'captions') return;
+
+        // A track's own label/language is content, not UI text — never translated.
+        const ownName = track.label || track.language;
+
         options.push({
             value: getSubtitleTrackValue(track, index),
-            label: track.label || track.language || `Track ${index + 1}`
+            label: ownName || `Track ${index + 1}`,
+            ...(ownName ? {} : {labelKey: 'subtitlesTrack' as const, labelParams: {index: index + 1}}),
         });
     });
 

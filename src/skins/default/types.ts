@@ -1,6 +1,15 @@
+import type {LocaleStringKey} from './locales/strings';
+
 export interface QualityOption {
     label: string;
     src: string;
+    /**
+     * Set by the player when it generated `label` itself (e.g. "Auto"), so the
+     * UI can translate it. Leave unset when supplying your own label.
+     */
+    labelKey?: LocaleStringKey;
+    /** Values interpolated into the `labelKey` template. */
+    labelParams?: Record<string, string | number>;
 }
 
 export interface QualityMenuOption extends QualityOption {
@@ -10,6 +19,10 @@ export interface QualityMenuOption extends QualityOption {
 export interface SubtitleOption {
     value: string;
     label: string;
+    /** See {@link QualityOption.labelKey}. */
+    labelKey?: LocaleStringKey;
+    /** Values interpolated into the `labelKey` template. */
+    labelParams?: Record<string, string | number>;
 }
 
 export interface AudioOption {

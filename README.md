@@ -32,6 +32,7 @@
   <a href="#public-api">API</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#development">Development</a> ·
+  <a href="#contributing-a-locale">Add a Locale</a> ·
   <a href="#related">Related</a>
 </p>
 
@@ -57,7 +58,7 @@ EvadePlayer is a full-featured video player by [Alukkart](https://github.com/Alu
 | 🧩 **Content Navigation** | Season / episode / voiceover selector |
 | ⏭️ **Fragment Skip** | Colored timeline markers + auto-skip for openings, endings, previews |
 | 🖼️ **Thumbnail Previews** | Storyboard-based timeline hover previews |
-| 🌐 **Localization** | Russian and English UI (extensible via `LocaleProvider`) |
+| 🌐 **Localization** | English and Russian UI — [add a language](#contributing-a-locale) in two files |
 | 💾 **State Persistence** | Remembers position, settings, preferences in `localStorage` |
 | 📦 **Web Component** | Works in any framework — React, Vue, Svelte, Angular, or plain HTML |
 
@@ -93,8 +94,8 @@ function App() {
 ### Any framework / no framework (script tag)
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/evade-player@0.2.0/dist/evade-player.css">
-<script src="https://cdn.jsdelivr.net/npm/evade-player@0.2.0/dist/evade-player.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/evade-player@0.2.1/dist/evade-player.css">
+<script src="https://cdn.jsdelivr.net/npm/evade-player@0.2.1/dist/evade-player.js"></script>
 
 <evade-player
   id="player"
@@ -249,7 +250,35 @@ Fragment segments appear as colored markers on the timeline. A skip button appea
 />
 ```
 
-All UI strings adapt to the selected locale. The `locale` prop defaults to `"ru"`.
+All UI strings adapt to the selected locale. `locale` defaults to `"en"`.
+Regional tags fall back to the base language (`"ru-RU"` → `"ru"`), and an
+unknown tag falls back to English rather than rendering blanks.
+
+**Overriding a few strings** — merged over the active locale:
+
+```tsx
+<VideoPlayer
+  src="https://example.com/video.m3u8"
+  locale="ru"
+  localeStrings={{ settingsSleepTimer: 'Таймер выключения' }}
+/>
+```
+
+**Adding a language at runtime** — no fork or PR needed:
+
+```tsx
+import { registerLocale, localeEn, type LocaleStrings } from 'evade-player';
+
+const localeDe: LocaleStrings = { ...localeEn, commonOff: 'Aus', commonOn: 'Ein' /* … */ };
+registerLocale('de', localeDe);
+
+<VideoPlayer src="…" locale="de" />
+```
+
+Helpers: `listLocales()`, `hasLocale(tag)`, `resolveLocaleStrings(tag)`,
+`DEFAULT_LOCALE`.
+
+See [Contributing a locale](#contributing-a-locale) to ship a language with the player.
 
 ### With playback state persistence
 
@@ -291,11 +320,11 @@ The player is also available as a framework-agnostic custom element `<evade-play
 
 Two options — **self-contained** (React bundled) or **thin** (load React separately).
 
-#### Option A: Self-contained (~385 kB gzip)
+#### Option A: Self-contained (~263 kB gzip)
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/evade-player@0.2.0/dist/evade-player.css">
-<script src="https://cdn.jsdelivr.net/npm/evade-player@0.2.0/dist/evade-player.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/evade-player@0.2.1/dist/evade-player.css">
+<script src="https://cdn.jsdelivr.net/npm/evade-player@0.2.1/dist/evade-player.js"></script>
 
 <evade-player
   id="player"
@@ -307,15 +336,15 @@ Two options — **self-contained** (React bundled) or **thin** (load React separ
 
 Everything in one script. Nothing else to load.
 
-#### Option B: Thin with React shared (~212 kB gzip)
+#### Option B: Thin with React shared (~206 kB gzip)
 
 Use when React is already on the page, or to share the React cache with other scripts:
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/evade-player@0.2.0/dist/evade-player.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/evade-player@0.2.1/dist/evade-player.css">
 <script src="https://cdn.jsdelivr.net/npm/react@19/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@19/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/evade-player@0.2.0/dist/evade-player.thin.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/evade-player@0.2.1/dist/evade-player.thin.js"></script>
 
 <evade-player
   id="player"
@@ -323,9 +352,36 @@ Use when React is already on the page, or to share the React cache with other sc
 ></evade-player>
 ```
 
+### Quick start (from npm)
+
+The web component is also reachable through the package, for bundler-based
+projects that are not using React:
+
+```bash
+npm install evade-player
+```
+
+```js
+import 'evade-player/standalone';           // registers <evade-player>
+import 'evade-player/standalone.css';
+
+// Or, when React is already in your bundle:
+// import 'evade-player/standalone/thin';
+```
+
 ### Passing complex data
 
-Complex props (arrays, objects) are set via JavaScript properties on the element:
+Arrays and objects can be set either as a JavaScript property or as a JSON
+attribute. Properties take precedence:
+
+```html
+<evade-player
+  src="https://example.com/master.m3u8"
+  fragments='[{"type":"opening","startTime":0,"endTime":90}]'
+></evade-player>
+```
+
+Via JavaScript properties on the element:
 
 ```html
 <evade-player id="player" src="https://example.com/master.m3u8"></evade-player>
@@ -383,15 +439,20 @@ player.addEventListener('savestate', (e) => console.log('Saved state:', e.detail
 | `currentSeason` | `string \| undefined` | ✅ `current-season` |
 | `currentEpisode` | `string \| undefined` | ✅ `current-episode` |
 | `currentVoiceover` | `string \| undefined` | ✅ `current-voiceover` |
-| `locale` | `"ru" \| "en" \| undefined` | ✅ `locale` |
-| `qualities` | `QualityOption[]` | ❌ (JS only) |
-| `seasons` | `SeasonOption[]` | ❌ (JS only) |
-| `fragments` | `Fragment[]` | ❌ (JS only) |
-| `fragmentSettings` | `Partial<FragmentSettings>` | ❌ (JS only) |
+| `locale` | `Locale \| undefined` | ✅ `locale` (any registered tag) |
+| `qualities` | `QualityOption[]` | ✅ `qualities` (JSON) |
+| `seasons` | `SeasonOption[]` | ✅ `seasons` (JSON) |
+| `fragments` | `Fragment[]` | ✅ `fragments` (JSON) |
+| `fragmentSettings` | `Partial<FragmentSettings>` | ✅ `fragment-settings` (JSON) |
 | `savedState` | `PlaybackState \| null \| undefined` | ❌ (JS only) |
 | `playerClass` | `string \| undefined` | ❌ (JS only) |
 
+A JS property always wins over the matching attribute. Malformed JSON in an
+attribute is ignored rather than thrown.
+
 ### Supported events
+
+React callbacks map to these Custom Events:
 
 | Event | `detail` shape |
 |---|---|
@@ -400,11 +461,40 @@ player.addEventListener('savestate', (e) => console.log('Saved state:', e.detail
 | `voiceoverchange` | `{ value: string }` |
 | `savestate` | `{ state: PlaybackState }` |
 
+Media element events are re-dispatched from the host element, so you can listen
+on `<evade-player>` the way you would on `<video>`:
+
+`loadedmetadata` · `durationchange` · `play` · `playing` · `pause` · `waiting` · `seeking` · `seeked` · `timeupdate` · `volumechange` · `ratechange` · `ended` · `error`
+
+Each carries a snapshot in `detail`:
+
+```js
+player.addEventListener('timeupdate', (e) => {
+  const { currentTime, duration } = e.detail;
+  console.log(`${currentTime} / ${duration}`);
+});
+
+player.addEventListener('error', (e) => {
+  console.error(e.detail.error); // { code, message }
+});
+```
+
+| `detail` field | Type | Notes |
+|---|---|---|
+| `currentTime` | `number` | |
+| `duration` | `number \| null` | `null` until known |
+| `paused` | `boolean` | |
+| `ended` | `boolean` | |
+| `volume` | `number` | |
+| `muted` | `boolean` | |
+| `playbackRate` | `number` | |
+| `error` | `{ code: number; message: string }` | present only when the media element has an error |
+
 ### Build your own bundle
 
 ```bash
-npm run build:standalone          # Self-contained  ~385 kB gzip
-npm run build:standalone:thin     # React external  ~212 kB gzip
+npm run build:standalone          # Self-contained  ~263 kB gzip
+npm run build:standalone:thin     # React external  ~206 kB gzip
 npm run build:standalone:all      # Both
 ```
 
@@ -446,7 +536,8 @@ Outputs to `dist/`:
 | `onSaveState` | `(state: PlaybackState) => void` | Callback when state is saved |
 | `fragments` | `Fragment[]` | Fragment segments (opening, ending, etc.) |
 | `fragmentSettings` | `Partial<FragmentSettings>` | Default auto-skip config per fragment type |
-| `locale` | `"ru" \| "en"` | UI language (default `"ru"`) |
+| `locale` | `Locale` | UI language — `"en"` (default), `"ru"`, or any registered tag |
+| `localeStrings` | `Partial<LocaleStrings>` | Per-string overrides merged over the active locale |
 | `errorDescription` | `string` | Custom error message |
 | `style` | `CSSProperties` | Inline styles on the player container |
 | `className` | `string` | Additional CSS class on the player container |
@@ -517,9 +608,19 @@ Outputs to `dist/`:
 
 | Export | Description |
 |---|---|
-| `getFragmentLabel` | Get localized fragment type label |
-| `FRAGMENT_LABELS_RU` | Russian fragment type labels |
-| `FRAGMENT_LABELS_EN` | English fragment type labels |
+| `registerLocale(tag, strings)` | Register or replace a locale at runtime |
+| `resolveLocaleStrings(tag?)` | String table for a tag, falling back to `DEFAULT_LOCALE` |
+| `listLocales()` | Every registered locale tag |
+| `hasLocale(tag)` | Whether a tag can be resolved |
+| `DEFAULT_LOCALE` | `"en"` |
+| `localeEn` / `localeRu` | Built-in string tables — spread these as a base for a new language |
+| `getFragmentLabel(type, t \| tag)` | Localized fragment type label |
+| `formatLocaleString(template, params)` | Substitute `{placeholders}` |
+| `resolveLocalizedLabel(option, t)` | Display text for a quality/subtitle option |
+| `LocaleProvider` | Context provider (`locale`, `strings`) |
+| `FRAGMENT_LABELS_RU` / `FRAGMENT_LABELS_EN` | **Deprecated** — cannot cover other locales; use `getFragmentLabel` |
+
+Types: `Locale`, `BuiltinLocale`, `LocaleStrings`, `LocaleStringKey`, `LocalizableLabel`.
 
 
 <a name="architecture"></a>
@@ -593,11 +694,15 @@ npm run dev
 |---|---|
 | `npm run dev` | Start dev server |
 | `npm run build` | Build React library (JS + CSS + types) |
-| `npm run build:standalone` | Build WC (self-contained, ~385 kB gzip) |
-| `npm run build:standalone:thin` | Build WC (React external, ~212 kB gzip) |
+| `npm run build:standalone` | Build WC (self-contained, ~263 kB gzip) |
+| `npm run build:standalone:thin` | Build WC (React external, ~206 kB gzip) |
 | `npm run build:all` | Build everything |
 | `npm run preview` | Preview production build |
 | `npm run lint` | Run ESLint |
+| `npm run typecheck` | Typecheck all projects (`tsc -b`) |
+| `npm test` | Run the Vitest suite once |
+| `npm run test:watch` | Vitest in watch mode |
+| `npm run test:coverage` | Vitest with coverage |
 
 ### ENV Configuration (demo app)
 
@@ -618,6 +723,95 @@ Host port can be set with `VITE_PORT`:
 ```bash
 VITE_PORT=4173 docker compose up --build
 ```
+
+
+<a name="contributing-a-locale"></a>
+## Contributing a locale
+
+Translations are very welcome, and adding one is a **two-file change**.
+For branching, tests, and the release process see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### 1. Copy the reference table
+
+`src/skins/default/locales/en.ts` is the reference. Copy it to your language tag
+and translate every value:
+
+```bash
+cp src/skins/default/locales/en.ts src/skins/default/locales/de.ts
+```
+
+```ts
+// src/skins/default/locales/de.ts
+import type {LocaleStrings} from './strings';
+
+export const localeDe: LocaleStrings = {
+  commonAuto: 'Automatisch',
+  commonBack: 'Zurück',
+  // …every remaining key
+};
+```
+
+Keep `{placeholders}` intact — `{minutes}`, `{seconds}`, `{time}`, `{index}` are
+substituted at runtime. You may move them, but not rename or drop them:
+
+```ts
+resumeContinueFrom: 'Ab {time} fortsetzen?',   // ✅
+resumeContinueFrom: 'Fortsetzen?',            // ❌ loses {time}
+```
+
+### 2. Register it
+
+Add one import and one entry in `src/skins/default/locales/registry.ts`:
+
+```ts
+import {localeDe} from './de';
+
+const BUILTIN_LOCALES = {
+  en: localeEn,
+  ru: localeRu,
+  de: localeDe,        // ← your line
+} satisfies Record<string, LocaleStrings>;
+```
+
+That is the whole change. No component, type, or export needs touching — the
+`Locale` type accepts any registered tag.
+
+### 3. Let the checks review your translation
+
+```bash
+npm run typecheck && npm test
+```
+
+Between them these catch every common mistake:
+
+| Mistake | Caught by |
+|---|---|
+| Missing a key | `typecheck` — `satisfies` rejects the table |
+| Typo in a key name | `typecheck` — unknown property |
+| Empty or whitespace-only value | `npm test` |
+| Dropped or renamed `{placeholder}` | `npm test` |
+| A UI option left untranslated | `npm test` |
+
+A failure names the exact keys, for example:
+
+```
+locale "de" › keeps the same {placeholders} as the reference
+  - [{ key: 'resumeContinueFrom', expected: ['time'], actual: [] }]
+```
+
+### Notes for translators
+
+- **Only UI chrome is translated.** Season names, episode titles, voiceover
+  names, and subtitle track names come from your content or the media file and
+  are never touched.
+- **`commonOff` vs `subtitlesOff` vs `normalizationOff`** are separate keys on
+  purpose — many languages need different wording per context, even where
+  English repeats "Off".
+- **Prefer short labels.** These render in a compact menu; long strings wrap.
+- Numeric labels (`volumeBoost150` → `150%`) usually stay as they are.
+
+Add your locale to the `🌐 Localization` row in the capability table too, so it
+shows up in the feature list.
 
 
 <a name="related"></a>

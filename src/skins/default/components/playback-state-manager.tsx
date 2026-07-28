@@ -60,7 +60,6 @@ export function PlaybackStateManager({
     const onSaveStateRef = useRef(onSaveState);
 
     const restoredRef = useRef(false);
-    const resumeDecidedRef = useRef(false);
 
     const [resumeState, setResumeState] = useState<PlaybackState | null>(() => {
         if (savedStateProp !== undefined) return savedStateProp;
@@ -69,8 +68,12 @@ export function PlaybackStateManager({
     const [showResume, setShowResume] = useState(false);
     const pendingSeekRef = useRef<number | null>(null);
 
+    // Read by the page-hide handler, which must not re-subscribe on every change.
+    const showResumeRef = useRef(showResume);
+
     useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
     useEffect(() => { onSaveStateRef.current = onSaveState; }, [onSaveState]);
+    useEffect(() => { showResumeRef.current = showResume; }, [showResume]);
 
     const resumeSubtitle = useMemo(() => {
         if (!resumeState) return undefined;
@@ -122,7 +125,6 @@ export function PlaybackStateManager({
     // Load saved state on mount or when src/savedStateProp changes
     useEffect(() => {
         if (!src) return;
-        resumeDecidedRef.current = false;
         const state = savedStateProp !== undefined ? savedStateProp : loadPlaybackState(src);
         startTransition(() => {
             if (state && state.time >= 1) {
@@ -193,11 +195,14 @@ export function PlaybackStateManager({
         onSaveState?.(state);
     }, [paused, showResume, src, buildState, currentTime, onSaveState]);
 
-    // Save on unmount and beforeunload
+    // Save when the page is hidden or torn down.
     useEffect(() => {
         if (!src) return;
 
-        const handleBeforeUnload = () => {
+        const persist = () => {
+            // While the resume prompt is up the user has not chosen yet, so the
+            // stored position must survive untouched.
+            if (showResumeRef.current) return;
             const time = currentTimeRef.current;
             if (time < 1) return;
             const state = buildStateRef.current(time);
@@ -205,15 +210,21 @@ export function PlaybackStateManager({
             onSaveStateRef.current?.(state);
         };
 
-        window.addEventListener('beforeunload', handleBeforeUnload);
+        // `visibilitychange` is the only signal mobile browsers reliably deliver
+        // when the tab is backgrounded or the app is closed; `pagehide` covers
+        // desktop navigation. `beforeunload` is deliberately not used: it is
+        // unreliable on mobile and registering it can disable the bfcache.
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') persist();
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pagehide', persist);
 
         return () => {
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-            const time = currentTimeRef.current;
-            if (time < 1) return;
-            const state = buildStateRef.current(time);
-            savePlaybackState(src, state);
-            onSaveStateRef.current?.(state);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pagehide', persist);
+            persist();
         };
     }, [src]);
 
@@ -230,7 +241,6 @@ export function PlaybackStateManager({
     }, [currentSeason, currentEpisode, currentVoiceover]);
 
     const handleResume = useCallback(() => {
-        resumeDecidedRef.current = true;
         setShowResume(false);
         if (!resumeState) return;
 
@@ -262,7 +272,6 @@ export function PlaybackStateManager({
     }, [resumeState, store, seasons, currentSeason, currentEpisode, currentVoiceover, onSeasonChange, onEpisodeChange, onVoiceoverChange]);
 
     const handleDismiss = useCallback(() => {
-        resumeDecidedRef.current = true;
         setShowResume(false);
     }, []);
 

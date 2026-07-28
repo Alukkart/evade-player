@@ -10,6 +10,7 @@ import {
     getActiveSubtitleValue,
 } from './utils';
 import {AUTO_QUALITY_VALUE, SUBTITLES_OFF_VALUE} from './types';
+import {makeMediaElement, makeTextTrack} from '../../test-utils/media';
 
 // ---------------------------------------------------------------------------
 // isString
@@ -59,7 +60,7 @@ describe('getQualityOptions', () => {
         ];
         const result = getQualityOptions(options, null);
         expect(result).toHaveLength(2);
-        expect(result[0].label).toBe('1080p');
+        expect(result[0]?.label).toBe('1080p');
     });
 
     it('adds source as Auto when source is not in options list', () => {
@@ -115,7 +116,7 @@ describe('parseHlsMasterPlaylist', () => {
 
     it('resolves relative URIs against master URL', () => {
         const options = parseHlsMasterPlaylist(MASTER_URL, MASTER_PLAYLIST);
-        expect(options[0].src).toBe('https://cdn.example.com/stream/360p/index.m3u8');
+        expect(options[0]?.src).toBe('https://cdn.example.com/stream/360p/index.m3u8');
     });
 
     it('falls back to Mbps label when no RESOLUTION attribute', () => {
@@ -124,7 +125,7 @@ describe('parseHlsMasterPlaylist', () => {
 mid/index.m3u8
 `;
         const options = parseHlsMasterPlaylist(MASTER_URL, playlist);
-        expect(options[0].label).toMatch(/Mbps/);
+        expect(options[0]?.label).toMatch(/Mbps/);
     });
 
     it('skips streams without audio codec or AUDIO attribute', () => {
@@ -172,8 +173,8 @@ describe('buildQualityMenuOptions', () => {
 
     it('prepends Auto option for HLS master source', () => {
         const result = buildQualityMenuOptions(rawOptions, masterSrc);
-        expect(result[0].value).toBe(AUTO_QUALITY_VALUE);
-        expect(result[0].label).toBe('Auto');
+        expect(result[0]?.value).toBe(AUTO_QUALITY_VALUE);
+        expect(result[0]?.label).toBe('Auto');
     });
 
     it('does not prepend Auto for non-HLS source', () => {
@@ -228,33 +229,39 @@ describe('resolveActiveQualityValue', () => {
     it('falls back to first option when source is null', () => {
         expect(resolveActiveQualityValue(options, null, masterSrc)).toBe(AUTO_QUALITY_VALUE);
     });
+
+    // Regression: an empty option list (a progressive source with no variants)
+    // used to return undefined despite the declared `string` return type, and
+    // threw a TypeError once a source was set.
+    describe('with an empty option list', () => {
+        const progressive = 'https://cdn/video.mp4';
+
+        it('returns a string when source is null', () => {
+            expect(resolveActiveQualityValue([], null, progressive)).toBe(AUTO_QUALITY_VALUE);
+        });
+
+        it('does not throw when source differs from master', () => {
+            expect(() => resolveActiveQualityValue([], 'https://cdn/other.mp4', progressive)).not.toThrow();
+            expect(resolveActiveQualityValue([], 'https://cdn/other.mp4', progressive)).toBe(AUTO_QUALITY_VALUE);
+        });
+
+        it('still reports Auto when source equals master', () => {
+            expect(resolveActiveQualityValue([], progressive, progressive)).toBe(AUTO_QUALITY_VALUE);
+        });
+    });
 });
 
 // ---------------------------------------------------------------------------
 // getSubtitleOptions
 // ---------------------------------------------------------------------------
 
-function makeTextTrack(kind: string, label: string, language: string, mode: TextTrackMode = 'disabled'): TextTrack {
-    return {kind, label, language, mode} as unknown as TextTrack;
-}
-
-function makeMediaElement(tracks: TextTrack[]): HTMLMediaElement {
-    const textTracks = {
-        length: tracks.length,
-        [Symbol.iterator]: function* () {
-            for (const t of tracks) yield t;
-        },
-    };
-    Object.assign(textTracks, tracks);
-    return {textTracks} as unknown as HTMLMediaElement;
-}
 
 describe('getSubtitleOptions', () => {
     it('returns only Off option when no text tracks', () => {
         const media = makeMediaElement([]);
         const result = getSubtitleOptions(media);
         expect(result).toHaveLength(1);
-        expect(result[0].value).toBe(SUBTITLES_OFF_VALUE);
+        expect(result[0]?.value).toBe(SUBTITLES_OFF_VALUE);
     });
 
     it('returns Off option for null media', () => {
@@ -270,20 +277,20 @@ describe('getSubtitleOptions', () => {
         ]);
         const result = getSubtitleOptions(media);
         expect(result).toHaveLength(3); // Off + English + French
-        expect(result[1].label).toBe('English');
-        expect(result[2].label).toBe('French');
+        expect(result[1]?.label).toBe('English');
+        expect(result[2]?.label).toBe('French');
     });
 
     it('uses language as fallback label when track label is empty', () => {
         const media = makeMediaElement([makeTextTrack('subtitles', '', 'de')]);
         const result = getSubtitleOptions(media);
-        expect(result[1].label).toBe('de');
+        expect(result[1]?.label).toBe('de');
     });
 
     it('uses Track N as fallback when both label and language are empty', () => {
         const media = makeMediaElement([makeTextTrack('subtitles', '', '')]);
         const result = getSubtitleOptions(media);
-        expect(result[1].label).toBe('Track 1');
+        expect(result[1]?.label).toBe('Track 1');
     });
 });
 

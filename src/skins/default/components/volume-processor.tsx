@@ -1,6 +1,6 @@
 import {useEffect} from 'react';
 import {usePlayerContext} from '@videojs/react';
-import {setMediaElement, resumeOnUserInteraction} from './audio-chain';
+import {setMediaElement, releaseMediaElement, resumeOnUserInteraction} from './audio-chain';
 
 export function VolumeProcessor(): null {
     const {container} = usePlayerContext();
@@ -11,61 +11,57 @@ export function VolumeProcessor(): null {
             return;
         }
 
-        const findAndAttachRealMediaElement = (): HTMLMediaElement | null => {
-            if (!(container instanceof HTMLElement)) {
-                return null;
-            }
-
-            const videoEl = container.querySelector('video');
-            const audioEl = container.querySelector('audio');
-
-            const mediaEl = (videoEl || audioEl) as HTMLMediaElement | null;
-
-            if (mediaEl) {
-                setMediaElement(mediaEl);
-            }
-
-            return mediaEl;
-        };
-
         let attachedMedia: HTMLMediaElement | null = null;
+        let detachListeners: (() => void) | null = null;
         let rafId: number | null = null;
         let observer: MutationObserver | null = null;
 
-        const pollForMediaElement = (): void => {
-            if (attachedMedia) return;
+        const RESUME_EVENTS = ['play', 'playing', 'click', 'mousedown'] as const;
 
-            const found = findAndAttachRealMediaElement();
-            if (found) {
-                attachedMedia = found;
-                setupListeners(found);
+        const setupListeners = (media: HTMLMediaElement): void => {
+            const handleResume = (): void => {
+                resumeOnUserInteraction();
+            };
+
+            for (const type of RESUME_EVENTS) {
+                media.addEventListener(type, handleResume);
+            }
+
+            detachListeners = () => {
+                for (const type of RESUME_EVENTS) {
+                    media.removeEventListener(type, handleResume);
+                }
+            };
+        };
+
+        const attachMediaElement = (): boolean => {
+            if (attachedMedia || !(container instanceof HTMLElement)) {
+                return false;
+            }
+
+            const mediaEl = container.querySelector<HTMLMediaElement>('video, audio');
+            if (!mediaEl) {
+                return false;
+            }
+
+            setMediaElement(mediaEl);
+            attachedMedia = mediaEl;
+            setupListeners(mediaEl);
+            return true;
+        };
+
+        const pollForMediaElement = (): void => {
+            if (attachMediaElement()) {
                 return;
             }
 
             rafId = requestAnimationFrame(pollForMediaElement);
         };
 
-        const setupListeners = (media: HTMLMediaElement): void => {
-            const handlePlay = (): void => {
-                resumeOnUserInteraction();
-            };
-
-            const handleInteraction = (): void => {
-                resumeOnUserInteraction();
-            };
-
-            media.addEventListener('play', handlePlay);
-            media.addEventListener('playing', handlePlay);
-            media.addEventListener('click', handleInteraction);
-            media.addEventListener('mousedown', handleInteraction);
-        };
-
         pollForMediaElement();
 
         observer = new MutationObserver(() => {
-            if (!attachedMedia) {
-                findAndAttachRealMediaElement();
-            }
+            attachMediaElement();
         });
 
         if (container instanceof HTMLElement) {
@@ -79,6 +75,9 @@ export function VolumeProcessor(): null {
         return () => {
             if (rafId !== null) cancelAnimationFrame(rafId);
             if (observer) observer.disconnect();
+            detachListeners?.();
+            // Hand the chain back so a remounted player can bind a new element.
+            releaseMediaElement(attachedMedia);
         };
     }, [container]);
 

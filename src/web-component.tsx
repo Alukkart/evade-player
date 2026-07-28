@@ -21,6 +21,28 @@ const OBSERVED_ATTRIBUTES = [
     'locale',
     'fragments',
     'fragment-settings',
+    'qualities',
+    'seasons',
+] as const;
+
+/**
+ * Media element events re-dispatched from the host element, so consumers can
+ * listen on `<evade-player>` the same way they would on `<video>`.
+ */
+const FORWARDED_MEDIA_EVENTS = [
+    'loadedmetadata',
+    'durationchange',
+    'play',
+    'playing',
+    'pause',
+    'waiting',
+    'seeking',
+    'seeked',
+    'timeupdate',
+    'volumechange',
+    'ratechange',
+    'ended',
+    'error',
 ] as const;
 
 export class EvadePlayerElement extends HTMLElement {
@@ -47,13 +69,40 @@ export class EvadePlayerElement extends HTMLElement {
 
     connectedCallback(): void {
         this.appendChild(this.#mount);
+        // Media events do not bubble, so capture them on the way down.
+        for (const type of FORWARDED_MEDIA_EVENTS) {
+            this.#mount.addEventListener(type, this.#forwardMediaEvent, true);
+        }
         this.#render();
     }
 
     disconnectedCallback(): void {
+        for (const type of FORWARDED_MEDIA_EVENTS) {
+            this.#mount.removeEventListener(type, this.#forwardMediaEvent, true);
+        }
         this.#root?.unmount();
         this.#root = null;
     }
+
+    #forwardMediaEvent = (event: Event): void => {
+        const media = event.target;
+        if (!(media instanceof HTMLMediaElement)) return;
+
+        this.dispatchEvent(new CustomEvent(event.type, {
+            detail: {
+                currentTime: media.currentTime,
+                duration: Number.isFinite(media.duration) ? media.duration : null,
+                paused: media.paused,
+                ended: media.ended,
+                volume: media.volume,
+                muted: media.muted,
+                playbackRate: media.playbackRate,
+                ...(media.error && {
+                    error: {code: media.error.code, message: media.error.message},
+                }),
+            },
+        }));
+    };
 
     attributeChangedCallback(_name: string, _old: string | null, _value: string | null): void {
         if (_old !== _value) {
@@ -113,8 +162,8 @@ export class EvadePlayerElement extends HTMLElement {
     }
 
     get locale(): Locale | undefined {
-        const v = this.getAttribute('locale');
-        return v === 'en' || v === 'ru' ? v : undefined;
+        // Any registered tag is valid; unknown tags fall back inside the player.
+        return this.getAttribute('locale') || undefined;
     }
     set locale(value: Locale | undefined) {
         this.#setAttr('locale', value);
@@ -158,16 +207,28 @@ export class EvadePlayerElement extends HTMLElement {
 
     #parseFragments(): Fragment[] | undefined {
         if (this.#fragments) return this.#fragments;
-        const raw = this.getAttribute('fragments');
-        if (!raw) return undefined;
-        try { return JSON.parse(raw) as Fragment[]; } catch { return undefined; }
+        return this.#parseJsonAttribute<Fragment[]>('fragments');
     }
 
     #parseFragmentSettings(): Partial<FragmentSettings> | undefined {
         if (this.#fragmentSettings) return this.#fragmentSettings;
-        const raw = this.getAttribute('fragment-settings');
+        return this.#parseJsonAttribute<Partial<FragmentSettings>>('fragment-settings');
+    }
+
+    #parseQualities(): QualityOption[] | undefined {
+        if (this.#qualities) return this.#qualities;
+        return this.#parseJsonAttribute<QualityOption[]>('qualities');
+    }
+
+    #parseSeasons(): SeasonOption[] | undefined {
+        if (this.#seasons) return this.#seasons;
+        return this.#parseJsonAttribute<SeasonOption[]>('seasons');
+    }
+
+    #parseJsonAttribute<T>(name: string): T | undefined {
+        const raw = this.getAttribute(name);
         if (!raw) return undefined;
-        try { return JSON.parse(raw) as Partial<FragmentSettings>; } catch { return undefined; }
+        try { return JSON.parse(raw) as T; } catch { return undefined; }
     }
 
     get savedState(): PlaybackState | null | undefined {
@@ -208,6 +269,8 @@ export class EvadePlayerElement extends HTMLElement {
 
         const fragments = this.#parseFragments();
         const fragmentSettings = this.#parseFragmentSettings();
+        const qualities = this.#parseQualities();
+        const seasons = this.#parseSeasons();
 
         const props: VideoPlayerProps = {
             src: a('src') || '',
@@ -229,8 +292,8 @@ export class EvadePlayerElement extends HTMLElement {
             }),
             ...(this.locale && {locale: this.locale}),
             ...(this.#className && {className: this.#className}),
-            ...(this.#qualities && {qualities: this.#qualities}),
-            ...(this.#seasons && {seasons: this.#seasons}),
+            ...(qualities && {qualities}),
+            ...(seasons && {seasons}),
             ...(fragments && {fragments}),
             ...(fragmentSettings && {fragmentSettings}),
             ...(this.#savedState !== undefined && {savedState: this.#savedState}),

@@ -34,7 +34,20 @@
       "import": "./dist/evade-player.react.js",
       "default": "./dist/evade-player.react.js"
     },
-    "./skins/default/skin.css": "./dist/evade-player.react.css"
+    "./standalone": {
+      "types": "./dist/standalone.d.ts",
+      "import": "./dist/evade-player.mjs",
+      "default": "./dist/evade-player.js"
+    },
+    "./standalone/thin": {
+      "types": "./dist/standalone.d.ts",
+      "import": "./dist/evade-player.thin.mjs",
+      "default": "./dist/evade-player.thin.js"
+    },
+    "./skins/default/skin.css": "./dist/evade-player.react.css",
+    "./standalone.css": "./dist/evade-player.css",
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
@@ -52,6 +65,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint .",
+    "typecheck": "tsc -b --force",
     "prepublishOnly": "npm run build:all"
   },
   "peerDependencies": {

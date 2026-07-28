@@ -34,6 +34,7 @@ function renderSubSettingOptions(
     return (
         <>
             <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                  onClick={onBack}
                  onKeyDown={(event) => {
                      if (!isMenuActionKey(event.key)) return;
@@ -42,10 +43,10 @@ function renderSubSettingOptions(
                  }}>
                 <span className="media-settings__label">
                     <ChevronLeft className="media-icon"/>
-                    <span>{SUBTITLE_SETTING_LABELS[setting]}</span>
+                    <span>{getSettingLabel(setting, t)}</span>
                 </span>
             </div>
-            <div className="media-menu__group" role="radiogroup" aria-label={SUBTITLE_SETTING_LABELS[setting]}>
+            <div className="media-menu__group" role="radiogroup" aria-label={getSettingLabel(setting, t)}>
                 {options.map((option) => (
                     <div key={option.value}
                          className="media-menu__item"
@@ -69,7 +70,7 @@ function renderSubSettingOptions(
     );
 }
 
-const SUBTITLE_SETTING_LABELS: Record<SubtitleSettingsView, string> = {
+const SUBTITLE_SETTING_LABELS: Record<SubtitleSettingsView, keyof ReturnType<typeof useLocaleStrings>> = {
     'font-size': 'subtitleFontSize',
     'text-color': 'subtitleTextColor',
     'text-bg': 'subtitleTextBg',
@@ -99,12 +100,15 @@ function getOptionLabel(setting: SubtitleSettingsView, value: string, t: ReturnT
 }
 
 function getSettingLabel(setting: SubtitleSettingsView, t: ReturnType<typeof useLocaleStrings>): string {
-    const key = SUBTITLE_SETTING_LABELS[setting];
-    return (t as unknown as Record<string, string>)[key] ?? setting;
+    return t[SUBTITLE_SETTING_LABELS[setting]];
 }
 
 function getCurrentOptionLabel(setting: SubtitleSettingsView, options: readonly SubtitleSettingOption[], value: string, t: ReturnType<typeof useLocaleStrings>): string {
-    return options.find((o) => o.value === value)?.label ?? getOptionLabel(setting, value, t) ?? t.commonDefault;
+    // Prefer the localized label; option.label is an untranslated English fallback
+    // for values that have no entry in the locale tables.
+    const localized = getOptionLabel(setting, value, t);
+    if (localized !== value) return localized;
+    return options.find((o) => o.value === value)?.label ?? t.commonDefault;
 }
 
 interface SubtitleSettingsContentProps {
@@ -128,6 +132,7 @@ export function SubtitleSettingsContent({
         return (
             <div className="media-menu__submenu">
                 <div className="media-menu__item media-menu__item--back" role="menuitem" tabIndex={0}
+                 aria-label={t.commonBack}
                      onClick={onBack}
                      onKeyDown={(event) => {
                          if (!isMenuActionKey(event.key)) return;

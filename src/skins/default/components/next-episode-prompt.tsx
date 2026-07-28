@@ -3,15 +3,11 @@
 import {type ReactNode, useEffect, useMemo, useRef, useState} from 'react';
 import {useMedia} from '@videojs/react';
 import {SkipForward, X} from 'lucide-react';
-import type {EpisodeOption, SeasonOption} from '../types';
+import type {SeasonOption} from '../types';
 import {useLocaleStrings} from './locale-context';
+import {getNextEpisode, getNextVoiceover} from './next-episode';
 
 const AUTO_ADVANCE_SECONDS = 5;
-
-interface NextEpisodeTarget {
-    seasonValue: string;
-    episode: EpisodeOption;
-}
 
 export interface NextEpisodePromptProps {
     seasons?: SeasonOption[];
@@ -21,63 +17,6 @@ export interface NextEpisodePromptProps {
     onSeasonChange?: (value: string) => void;
     onEpisodeChange?: (value: string) => void;
     onVoiceoverChange?: (value: string) => void;
-}
-
-function findVoiceoverEpisodes(
-    season: SeasonOption,
-    currentVoiceover: string | undefined
-): EpisodeOption[] | undefined {
-    if (!currentVoiceover) return undefined;
-
-    for (const episode of season.episodes ?? []) {
-        const voiceover = episode.voiceovers?.find((item) => item.value === currentVoiceover);
-        if (voiceover?.episodes && voiceover.episodes.length > 0) {
-            return voiceover.episodes;
-        }
-    }
-
-    const filtered = (season.episodes ?? []).filter((episode) =>
-        episode.voiceovers?.some((voiceover) => voiceover.value === currentVoiceover)
-    );
-
-    return filtered.length > 0 ? filtered : undefined;
-}
-
-function getPlayableEpisodes(
-    seasons: SeasonOption[] | undefined,
-    currentVoiceover: string | undefined
-): NextEpisodeTarget[] {
-    if (!seasons) return [];
-
-    return seasons.flatMap((season) => {
-        const episodes = findVoiceoverEpisodes(season, currentVoiceover) ?? season.episodes ?? [];
-        return episodes.map((episode) => ({seasonValue: season.value, episode}));
-    });
-}
-
-function getNextEpisode(
-    seasons: SeasonOption[] | undefined,
-    currentSeason: string | undefined,
-    currentEpisode: string | undefined,
-    currentVoiceover: string | undefined
-): NextEpisodeTarget | null {
-    if (!currentEpisode) return null;
-
-    const playableEpisodes = getPlayableEpisodes(seasons, currentVoiceover);
-    const currentIndex = playableEpisodes.findIndex((item) =>
-        item.episode.value === currentEpisode && (!currentSeason || item.seasonValue === currentSeason)
-    );
-
-    if (currentIndex < 0) return null;
-    return playableEpisodes[currentIndex + 1] ?? null;
-}
-
-function getNextVoiceover(episode: EpisodeOption, currentVoiceover: string | undefined): string | undefined {
-    if (!episode.voiceovers?.length) return currentVoiceover;
-    if (currentVoiceover && episode.voiceovers.some((voiceover) => voiceover.value === currentVoiceover)) {
-        return currentVoiceover;
-    }
-    return episode.voiceovers[0]?.value;
 }
 
 export function NextEpisodePrompt({
@@ -102,12 +41,16 @@ export function NextEpisodePrompt({
     );
 
     // Reset prompt state whenever the current playback context changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    useEffect(() => {
+    // Adjusting state during render is React's recommended alternative to a
+    // state-resetting effect (https://react.dev/learn/you-might-not-need-an-effect).
+    const contextKey = `${currentSeason ?? ''}|${currentEpisode ?? ''}|${currentVoiceover ?? ''}`;
+    const [prevContextKey, setPrevContextKey] = useState(contextKey);
+    if (contextKey !== prevContextKey) {
+        setPrevContextKey(contextKey);
         setVisible(false);
         setCancelled(false);
         setRemainingSeconds(AUTO_ADVANCE_SECONDS);
-    }, [currentSeason, currentEpisode, currentVoiceover]);
+    }
 
     useEffect(() => {
         if (!media || !nextEpisode || !onEpisodeChange) return;

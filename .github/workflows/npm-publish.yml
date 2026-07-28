@@ -1,19 +1,39 @@
 name: Node.js Package
 
 on:
+  # `published`, not `created`: `created` also fires when a draft release is
+  # saved, which would publish to npm while release notes are still being
+  # written. `published` fires only when the release actually goes live.
   release:
-    types: [created]
+    types: [published]
+
+permissions:
+  contents: read
 
 jobs:
   publish-npm:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm provenance. Drop this along with the --provenance flag
+      # below if the package is ever published from a private repository.
+      id-token: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: npm
           registry-url: https://registry.npmjs.org/
       - run: npm ci
-      - run: npm publish
+
+      # A release must not ship code that would fail CI. `prepublishOnly` only
+      # builds, so the quality gate has to run here explicitly.
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+      # `prepublishOnly` runs build:all, so the artifacts are built here.
+      - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

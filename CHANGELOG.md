@@ -1,5 +1,38 @@
 # Changelog
 
+All notable changes are documented here. Add your entry to **[Unreleased]** in
+the same pull request as the change; releasing renames that heading to the new
+version. See [CONTRIBUTING.md](CONTRIBUTING.md#releasing).
+
+## [Unreleased]
+
+### Added
+- Extensible locale system — `registerLocale`, `resolveLocaleStrings`, `listLocales`, `hasLocale`, and `DEFAULT_LOCALE`; any registered tag is accepted, regional tags (`ru-RU`) fall back to the base language, and unknown tags fall back to English
+- `localeStrings` prop (and `LocaleProvider strings`) for overriding individual UI strings
+- Locale API exposed on the standalone bundle, so script-tag consumers can add a language without a bundler
+- Web Component now re-dispatches media events — `loadedmetadata`, `durationchange`, `play`, `playing`, `pause`, `waiting`, `seeking`, `seeked`, `timeupdate`, `volumechange`, `ratechange`, `ended`, `error`
+- Web Component `qualities` and `seasons` JSON attributes, matching the existing `fragments` attributes
+- `releaseMediaElement()` for handing the audio chain back when a player unmounts
+- Package exports for the standalone bundle (`evade-player/standalone`, `evade-player/standalone/thin`, `evade-player/standalone.css`)
+- CI workflow running lint, typecheck, tests, and all builds
+
+### Changed
+- Default locale documented correctly as `en` (behaviour unchanged); `LocaleProvider` and the locale context now agree
+- `getFragmentLabel(type, source)` accepts a resolved string table as well as a locale tag
+- TypeScript `strict` and `noUncheckedIndexedAccess` enabled across all projects
+- Release workflow runs lint, typecheck, and tests before publishing, and triggers on `published` rather than `created`
+
+### Fixed
+- Playback position is no longer lost when a tab is backgrounded or closed on mobile — saving now uses `visibilitychange`/`pagehide` instead of the unreliable `beforeunload`
+- Playback position is no longer overwritten while the resume prompt is still awaiting the user's choice
+- Subtitle settings submenus rendered raw locale keys (e.g. `subtitleFontSize`) as their heading and `aria-label`
+- Subtitle settings summary rows showed English labels regardless of the active locale
+- Player-generated labels ("Off", "Auto", "Track N", "Quality N") are now translated instead of being hardcoded English
+- Volume boost and loudness normalization silently stopped working after a player remount
+- `resolveActiveQualityValue` could return `undefined` despite its `string` return type, and threw on an empty option list
+- Test declarations (`*.test.d.ts`, `test-utils/`) are no longer published to npm
+- Typecheck in CI actually checks the source — `tsc --noEmit` on the solution-style config was checking zero files
+
 ## [0.2.1] — 2026-06-08
 
 ### Added

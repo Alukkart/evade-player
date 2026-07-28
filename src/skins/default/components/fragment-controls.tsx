@@ -11,7 +11,7 @@ import {
 } from '../types';
 import {useFragmentSettings} from './fragment-settings-context';
 import {getFragmentLabel} from '../locales';
-import {useLocale} from './locale-context';
+import {useLocaleStrings} from './locale-context';
 
 const AUTO_SKIP_DELAY_MS = 300;
 const RESET_DELAY_MS = 1000;
@@ -36,7 +36,7 @@ function useSeek(): (time: number) => void {
 
 export function FragmentMarkers({fragments}: { fragments: Fragment[] }): ReactNode {
     const duration = useDuration();
-    const {locale} = useLocale();
+    const t = useLocaleStrings();
 
     if (!duration || duration <= 0 || !fragments.length) return null;
 
@@ -56,7 +56,7 @@ export function FragmentMarkers({fragments}: { fragments: Fragment[] }): ReactNo
                             width: `${width}%`,
                             backgroundColor: color,
                         }}
-                        title={fragment.label ?? getFragmentLabel(fragment.type, locale)}
+                        title={fragment.label ?? getFragmentLabel(fragment.type, t)}
                     />
                 );
             })}
@@ -75,7 +75,7 @@ export function SkipFragmentButton({
 }): ReactNode {
     const currentTime = useCurrentTime();
     const seek = useSeek();
-    const {locale} = useLocale();
+    const t = useLocaleStrings();
     const {settings: fragmentSettings} = useFragmentSettings();
     const [skippedFragments, setSkippedFragments] = useState<Set<number>>(new Set());
     const skippedRef = useRef(skippedFragments);
@@ -139,7 +139,7 @@ export function SkipFragmentButton({
     // Silent auto-skip: hide the button entirely, the seek effect handles it
     if (getAutoSkipValue(currentActive.type, fragmentSettings)) return null;
 
-    const label = currentActive.label ?? getFragmentLabel(currentActive.type, locale);
+    const label = currentActive.label ?? getFragmentLabel(currentActive.type, t);
 
     const handleSkip = () => {
         seek(currentActive.endTime);

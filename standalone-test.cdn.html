@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EvadePlayer — standalone test (CDN)</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/evade-player@0.2.0/dist/evade-player.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/evade-player@0.2.1/dist/evade-player.css">
     <style>
         *, *::before, *::after { box-sizing: border-box; }
 
@@ -101,6 +101,13 @@
             outline: none;
         }
         .src-row input:focus { border-color: #555; }
+        .probe-card { grid-column: 1 / -1; }
+        #probe { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px 14px; }
+        .probe-row { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .probe-row span { color: #777; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; }
+        .probe-row b { color: #eee; font-size: .82rem; font-weight: 500; overflow-wrap: anywhere; }
+        .probe-row b.ok  { color: #7ee787; }
+        .probe-row b.bad { color: #ff7b72; }
     </style>
 </head>
 <body>
@@ -111,11 +118,17 @@
 
 <div class="controls">
 
+    <div class="card probe-card">
+        <h2>Что играет сейчас</h2>
+        <dl id="probe"><div class="probe-row"><span>—</span><b>ожидание</b></div></dl>
+    </div>
+
     <div class="card">
         <h2>Источник</h2>
         <div class="row">
-            <button onclick="setSrc('hls-big')">Big Buck Bunny (HLS)</button>
-            <button onclick="setSrc('hls-mux')">Mux test (HLS)</button>
+            <button onclick="setSrc('hls-big')">Big Buck Bunny</button>
+            <button onclick="setSrc('hls-subs')">BipBop (субтитры)</button>
+            <button onclick="setSrc('hls-audio')">Angel One (мультиаудио)</button>
             <button onclick="setSrc('mp4')">MP4</button>
         </div>
         <div class="src-row">
@@ -187,103 +200,139 @@
 
 <div id="log"><p>— события появятся здесь —</p></div>
 
-<script src="https://cdn.jsdelivr.net/npm/evade-player@0.2.0/dist/evade-player.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/evade-player@0.2.1/dist/evade-player.js"></script>
 <script>
 const player = document.getElementById('player');
 const logEl  = document.getElementById('log');
 
 // ── Data ────────────────────────────────────────────────────────────────────
 
+// ── Источники ────────────────────────────────────────────────────────────────
+// Все ссылки проверены разбором манифеста: разрешение, длительность и набор
+// дорожек указаны по факту, а не со слов. Подобраны так, чтобы у каждого
+// источника был уникальный «отпечаток» — тогда видно, что переключение
+// действительно сменило контент, а не осталось на прежнем.
+//
+// Лицензии: Big Buck Bunny / Tears of Steel / Sintel — Blender Foundation,
+// CC-BY; Angel One — тестовый ассет Shaka Player; BipBop — публичный тестовый
+// поток Apple; остальное — публичные тестовые потоки Mux.
+
+const CATALOG = {
+    bbb: {
+        label: 'Big Buck Bunny',
+        src:   'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+        note:  '1920×1080 · 10:34 · MPEG-TS',
+        dur: 634,
+        subs: 0,
+    },
+    bbbDark: {
+        label: 'Big Buck Bunny — Dark Truths',
+        src:   'https://storage.googleapis.com/shaka-demo-assets/bbb-dark-truths-hls/hls.m3u8',
+        note:  '1252×720 · 6:12 · тот же фильм, другой монтаж',
+        dur: 372,
+        subs: 0,
+    },
+    tos: {
+        label: 'Tears of Steel',
+        src:   'https://test-streams.mux.dev/tos_ismc/main.m3u8',
+        note:  '1920×800 · 12:14 · fMP4',
+        dur: 734,
+        subs: 2,
+    },
+    shift: {
+        label: 'PTS shift',
+        src:   'https://test-streams.mux.dev/pts_shift/master.m3u8',
+        note:  '1280×720 · 2:45',
+        dur: 165,
+        subs: 0,
+    },
+    bipbop: {
+        label: 'Apple BipBop — с субтитрами',
+        src:   'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8',
+        note:  '1920×1080 · 30:00 · субтитры en/fr/es/ja (+forced) = 8 дорожек',
+        dur: 1800,
+        subs: 8,
+    },
+    bipbopPlain: {
+        label: 'Apple BipBop — без субтитров',
+        src:   'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8',
+        note:  '4×3 · 30:00 · без дорожек субтитров',
+        dur: 1800,
+        subs: 0,
+    },
+    angel: {
+        label: 'Angel One',
+        src:   'https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8',
+        note:  '768×576 · 1:00 · аудио en/de/it/fr/es',
+        dur: 60,
+        subs: 4,
+    },
+    mp4: {
+        label: 'MP4 (прогрессивный)',
+        src:   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        note:  'прогрессивный MP4, без HLS',
+        dur: 596,
+        subs: 0,
+    },
+};
+
 const SOURCES = {
-    'hls-big':    'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-    'hls-mux':    'https://stream.mux.com/v69RSHhFelSm4701snP22dYz2jICy4E4S.m3u8',
-    'mp4':        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    'hls-big': CATALOG.bbb.src,
+    'hls-subs': CATALOG.bipbop.src,
+    'hls-audio': CATALOG.angel.src,
+    'mp4': CATALOG.mp4.src,
 };
 
-const EP_SRC = {
-    s1e1: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-    s1e2: 'https://test-streams.mux.dev/tos_ismc/main.m3u8',
-    s1e3: 'https://test-streams.mux.dev/pts_shift/master.m3u8',
-    s2e1: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-    s2e2: 'https://test-streams.mux.dev/tos_ismc/main.m3u8',
-};
-
+// Варианты качества — это ренditions Big Buck Bunny, поэтому осмысленны
+// только когда играет он.
 const QUALITIES = [
     { label: '1080p', src: 'https://test-streams.mux.dev/x36xhzz/url_6/url_462/193039199_mp4_h264_aac_hd_7.m3u8' },
     { label: '720p',  src: 'https://test-streams.mux.dev/x36xhzz/url_2/url_462/193039199_mp4_h264_aac_ld_7.m3u8' },
     { label: '480p',  src: 'https://test-streams.mux.dev/x36xhzz/url_6/193039199_mp4_h264_aac_hd_7.m3u8' },
 ];
 
+// Каждый эпизод и каждая озвучка ведут на РАЗНЫЙ источник с разной
+// длительностью — именно поэтому по панели «Что играет сейчас» видно, что
+// переключение сработало.
 const SEASONS = [
     {
-        label: 'Сезон 1', value: 's1',
+        label: 'Сезон 1 — открытые фильмы', value: 's1',
         episodes: [
             {
-                label: 'Эпизод 1', value: 's1e1', src: EP_SRC.s1e1,
+                label: 'Эпизод 1 · Big Buck Bunny', value: 's1e1', src: CATALOG.bbb.src,
                 voiceovers: [
-                    {
-                        label: 'Дубляж', value: 'dub',
-                        episodes: [
-                            { label: 'Эпизод 1', value: 's1e1' },
-                            { label: 'Эпизод 2', value: 's1e2' },
-                            { label: 'Эпизод 3', value: 's1e3' },
-                        ],
-                    },
-                    {
-                        label: 'Субтитры', value: 'sub',
-                        episodes: [
-                            { label: 'Эпизод 1', value: 's1e1' },
-                            { label: 'Эпизод 2', value: 's1e2' },
-                        ],
-                    },
-                    {
-                        label: 'Оригинал', value: 'orig',
-                        episodes: [
-                            { label: 'Эпизод 1', value: 's1e1' },
-                        ],
-                    },
+                    { label: 'Оригинал (10:34)',    value: 'orig', src: CATALOG.bbb.src },
+                    { label: 'Другой монтаж (6:12)', value: 'alt',  src: CATALOG.bbbDark.src },
                 ],
             },
             {
-                label: 'Эпизод 2', value: 's1e2', src: EP_SRC.s1e2,
+                label: 'Эпизод 2 · Tears of Steel', value: 's1e2', src: CATALOG.tos.src,
                 voiceovers: [
-                    { label: 'Дубляж', value: 'dub' },
-                    { label: 'Субтитры', value: 'sub' },
+                    { label: 'Оригинал (12:14)', value: 'orig', src: CATALOG.tos.src },
                 ],
             },
             {
-                label: 'Эпизод 3', value: 's1e3', src: EP_SRC.s1e3,
+                label: 'Эпизод 3 · PTS shift', value: 's1e3', src: CATALOG.shift.src,
                 voiceovers: [
-                    { label: 'Дубляж', value: 'dub' },
+                    { label: 'Оригинал (2:45)', value: 'orig', src: CATALOG.shift.src },
                 ],
             },
         ],
     },
     {
-        label: 'Сезон 2', value: 's2',
+        label: 'Сезон 2 — дорожки', value: 's2',
         episodes: [
             {
-                label: 'Эпизод 1', value: 's2e1', src: EP_SRC.s2e1,
+                label: 'Эпизод 1 · BipBop', value: 's2e1', src: CATALOG.bipbop.src,
                 voiceovers: [
-                    {
-                        label: 'Дубляж', value: 'dub',
-                        episodes: [
-                            { label: 'Эпизод 1', value: 's2e1' },
-                            { label: 'Эпизод 2', value: 's2e2' },
-                        ],
-                    },
-                    {
-                        label: 'Субтитры', value: 'sub',
-                        episodes: [
-                            { label: 'Эпизод 1', value: 's2e1' },
-                        ],
-                    },
+                    { label: 'С субтитрами (4 языка)', value: 'subs',  src: CATALOG.bipbop.src },
+                    { label: 'Без субтитров',          value: 'plain', src: CATALOG.bipbopPlain.src },
                 ],
             },
             {
-                label: 'Эпизод 2', value: 's2e2', src: EP_SRC.s2e2,
+                label: 'Эпизод 2 · Angel One', value: 's2e2', src: CATALOG.angel.src,
                 voiceovers: [
-                    { label: 'Дубляж', value: 'dub' },
+                    { label: 'Мультиаудио (5 языков)', value: 'multi', src: CATALOG.angel.src },
                 ],
             },
         ],
@@ -409,7 +458,7 @@ function setSeasons(on) {
     if (on) {
         state.currentSeason   = 's1';
         state.currentEpisode  = 's1e1';
-        state.currentVoiceover = 'dub';
+        state.currentVoiceover = 'orig';
         player.seasons         = SEASONS;
         player.currentSeason   = state.currentSeason;
         player.currentEpisode  = state.currentEpisode;
@@ -480,6 +529,83 @@ player.addEventListener('savestate', e => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 player.src = state.src;
+// ── Панель «Что играет сейчас» ───────────────────────────────────────────────
+// Слева — что мы попросили сыграть, справа — что реально играет по данным
+// media-элемента. Строка «сверка» зелёная, только когда они сходятся; это и
+// есть доказательство, что переключение эпизода или озвучки сработало.
+
+function mediaEl() { return player.querySelector('video'); }
+
+function fmtClock(s) {
+    if (!Number.isFinite(s) || s < 0) return '—';
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+/** Источник, который должен играть при текущем состоянии — та же логика, что у плеера. */
+function expectedSrc() {
+    if (!player.seasons) return state.src;
+    const season = SEASONS.find(s => s.value === state.currentSeason);
+    const ep = season?.episodes?.find(e => e.value === state.currentEpisode);
+    if (!ep) return state.src;
+    const vo = ep.voiceovers?.find(v => v.value === state.currentVoiceover);
+    return vo?.src || ep.src || state.src;
+}
+
+function expectedEntry() {
+    const src = expectedSrc();
+    return Object.values(CATALOG).find(c => c.src === src) || null;
+}
+
+function updateProbe() {
+    const el = document.getElementById('probe');
+    if (!el) return;
+    const v = mediaEl();
+    if (!v) {
+        el.innerHTML = '<div class="probe-row"><span>—</span><b>media-элемент не смонтирован</b></div>';
+        return;
+    }
+
+    const texts   = Array.from(v.textTracks || []).filter(t => t.kind === 'subtitles' || t.kind === 'captions');
+    const audio   = v.audioTracks ? Array.from(v.audioTracks) : null;
+    const showing = texts.find(t => t.mode === 'showing');
+    const cues    = showing && showing.cues ? showing.cues.length : 0;
+
+    const want = expectedEntry();
+    const haveDur = v.duration;
+
+    // Вердикт строим на длительности: она уникальна почти у всех источников и,
+    // в отличие от textTracks, не «залипает» от предыдущего источника — браузер
+    // не всегда очищает список дорожек при смене src. Число субтитров показываем
+    // рядом справочно: для пары BipBop 16×9 / 4×3 (обе 30:00) именно список
+    // языков и показывает, какая из них играет.
+    let verdict = '— нечего сверять';
+    let ok = false;
+    if (want && Number.isFinite(haveDur) && haveDur > 0) {
+        ok = Math.abs(haveDur - want.dur) <= 3;
+        verdict = ok ? '✓ длительность совпадает' : `✗ ждали ${fmtClock(want.dur)}, играет ${fmtClock(haveDur)}`;
+    }
+
+    const rows = {
+        'ожидается':    want ? `${want.label} — ${fmtClock(want.dur)} · субтитров ${want.subs}` : 'вне каталога',
+        'фактически':   `${fmtClock(haveDur)} · ${v.videoWidth ? v.videoWidth + '×' + v.videoHeight : '—'} · субтитров ${texts.length}`,
+        'сверка':       verdict,
+        'позиция':      fmtClock(v.currentTime),
+        'дорожки субтитров': texts.length ? texts.map(t => t.language || t.label || '?').join(', ') : 'нет',
+        'активные cue': showing ? `${showing.language || showing.label || '?'} · ${cues} шт.` : 'выключены',
+        'аудиодорожки': audio
+                            ? `${audio.length}: ${audio.map(t => t.language || t.label || '?').join(', ')}`
+                            : 'audioTracks не поддерживается браузером',
+    };
+
+    el.innerHTML = Object.entries(rows).map(([k, val]) => {
+        const cls = k === 'сверка' ? (ok ? 'ok' : 'bad') : '';
+        return `<div class="probe-row"><span>${k}</span><b class="${cls}">${val}</b></div>`;
+    }).join('');
+}
+
+setInterval(updateProbe, 500);
+updateProbe();
 </script>
 </body>
 </html>
