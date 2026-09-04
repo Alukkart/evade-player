@@ -7,6 +7,9 @@ version. See [CONTRIBUTING.md](CONTRIBUTING.md#releasing).
 ## [Unreleased]
 
 ### Added
+- `playbackerror` event (`onPlaybackError` in React) reporting playback failures with `fatal`, `kind`, `details`, `status`, `url`, and `time` — the HTTP status distinguishes an expired signed manifest (`403`) from a dropped network or a missing file
+- Web Component `reload(src, options?)` — swaps the source in place, restoring the position and leaving voiceover, quality, volume and fullscreen untouched
+- `PlaybackErrorDetail`, `PlaybackErrorKind`, and `ReloadOptions` types
 - Extensible locale system — `registerLocale`, `resolveLocaleStrings`, `listLocales`, `hasLocale`, and `DEFAULT_LOCALE`; any registered tag is accepted, regional tags (`ru-RU`) fall back to the base language, and unknown tags fall back to English
 - `localeStrings` prop (and `LocaleProvider strings`) for overriding individual UI strings
 - Locale API exposed on the standalone bundle, so script-tag consumers can add a language without a bundler

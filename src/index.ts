@@ -2,6 +2,7 @@ export { VideoPlayer } from './skins/default/skin';
 export type { VideoPlayerProps } from './skins/default/skin';
 
 export { EvadePlayerElement } from './web-component';
+export type { ReloadOptions } from './web-component';
 
 export { Player } from './skins/default/player';
 
@@ -11,6 +12,8 @@ export type {
   EpisodeOption,
   VoiceoverOption,
   PlaybackState,
+  PlaybackErrorDetail,
+  PlaybackErrorKind,
   PlayerSettings,
   SubtitleOption,
   AudioOption,

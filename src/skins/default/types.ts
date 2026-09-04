@@ -57,6 +57,28 @@ export interface PlaybackState {
     voiceover?: string;
 }
 
+/**
+ * Coarse category of a playback failure, so consumers never have to know about
+ * hls.js internals to react to one.
+ */
+export type PlaybackErrorKind = 'network' | 'media' | 'drm' | 'other';
+
+/** Payload of the `playbackerror` event / `onPlaybackError` callback. */
+export interface PlaybackErrorDetail {
+    /** Playback stopped. Errors the player recovered from report `false`. */
+    fatal: boolean;
+    /** Coarse category, so the host does not need to know about hls.js internals. */
+    kind: PlaybackErrorKind;
+    /** hls.js code verbatim: `"fragLoadError"`, `"manifestLoadError"`, … */
+    details?: string;
+    /** HTTP status when the failure arrived as a response. `403` means an expired signature. */
+    status?: number;
+    /** URL that failed to load. */
+    url?: string;
+    /** Position in seconds at the moment of the failure. */
+    time: number;
+}
+
 export const AUTO_QUALITY_VALUE = '__auto__';
 export const SUBTITLES_OFF_VALUE = '__subtitles_off__';
 export const AUDIO_OFF_VALUE = '__audio_off__';

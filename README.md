@@ -301,6 +301,45 @@ function App() {
 
 The player shows a "Continue from X?" prompt when returning to a partially-watched video. State is also persisted to `localStorage` automatically.
 
+### Reacting to playback failures
+
+`onPlaybackError` fires whenever playback breaks, including errors the player
+recovers from — check `fatal` first. For signed manifests, a fatal failure with
+`status` `401` or `403` means the signature expired rather than the network
+dropping, which is something the app can fix on its own.
+
+```tsx
+import { VideoPlayer, type PlaybackErrorDetail } from 'evade-player';
+
+function App() {
+  const [src, setSrc] = useState(initialSrc);
+  const [resumeAt, setResumeAt] = useState<number | null>(null);
+  const retried = useRef(false);
+
+  const handleError = async ({ fatal, status, time }: PlaybackErrorDetail) => {
+    if (!fatal || (status !== 401 && status !== 403) || retried.current) return;
+    retried.current = true;
+
+    const fresh = await fetchSignedSource();
+    setResumeAt(time);
+    setSrc(fresh);
+  };
+
+  return (
+    <VideoPlayer
+      src={src}
+      savedState={resumeAt === null ? null : { time: resumeAt }}
+      onPlaybackError={handleError}
+    />
+  );
+}
+```
+
+Changing `src` swaps the source in place — the `<video>` element is not
+recreated, so volume, quality and fullscreen survive — but the position resets,
+which is what `savedState` is for. In the custom element the same recovery is a
+single [`reload()`](#methods) call, which restores the position for you.
+
 ### Audio boost and normalization
 
 ```tsx
@@ -426,7 +465,48 @@ player.addEventListener('seasonchange', (e) => console.log('Season:', e.detail.v
 player.addEventListener('episodechange', (e) => console.log('Episode:', e.detail.value));
 player.addEventListener('voiceoverchange', (e) => console.log('Voiceover:', e.detail.value));
 player.addEventListener('savestate', (e) => console.log('Saved state:', e.detail.state));
+player.addEventListener('playbackerror', (e) => console.log('Playback failed:', e.detail));
 ```
+
+### Recovering an expired stream
+
+Signed manifests outlive their signature: pause for an hour, or watch a film
+longer than the token's lifetime, and the next segment comes back `403`. The
+player reports that as `playbackerror`; `reload()` swaps in a freshly signed URL
+without recreating the element, so the position, the chosen voiceover, quality
+and volume all survive.
+
+```js
+let retried = false;
+
+player.addEventListener('playbackerror', async (e) => {
+  const {fatal, status, time} = e.detail;
+  // Anything other than an expired signature is left to the player's own
+  // error dialog.
+  if (!fatal || (status !== 401 && status !== 403) || retried) return;
+  retried = true;
+
+  const {url} = await fetch(`/playback/${filmId}/`).then((r) => r.json());
+  player.reload(url, {time});
+});
+
+player.addEventListener('playing', () => { retried = false; });
+```
+
+### Methods
+
+| Method | Description |
+|---|---|
+| `reload(src, options?)` | Swap the source in place, keeping position and UI state |
+
+`reload()` restores the position once the replacement source reports metadata,
+and resumes playback if it was running at the time of the call. `options.time`
+overrides the position; it defaults to wherever the player currently is. The URL
+has to differ from the current one — an identical string leaves the underlying
+engine untouched.
+
+A `reload()` also keeps the "resume where you left off" prompt down, since it
+restores the position itself. Assigning `savedState` again re-arms the prompt.
 
 ### All element properties
 
@@ -460,6 +540,7 @@ React callbacks map to these Custom Events:
 | `episodechange` | `{ value: string }` |
 | `voiceoverchange` | `{ value: string }` |
 | `savestate` | `{ state: PlaybackState }` |
+| `playbackerror` | `PlaybackErrorDetail` — see below |
 
 Media element events are re-dispatched from the host element, so you can listen
 on `<evade-player>` the way you would on `<video>`:
@@ -489,6 +570,22 @@ player.addEventListener('error', (e) => {
 | `muted` | `boolean` | |
 | `playbackRate` | `number` | |
 | `error` | `{ code: number; message: string }` | present only when the media element has an error |
+
+`playbackerror` is deliberately not called `error`: the media element's own
+`error` event is already re-dispatched from the host, and a single listener
+would otherwise receive both.
+
+| `playbackerror` detail | Type | Notes |
+|---|---|---|
+| `fatal` | `boolean` | `false` for errors the player recovered from |
+| `kind` | `'network' \| 'media' \| 'drm' \| 'other'` | coarse category, no hls.js knowledge required |
+| `details` | `string \| undefined` | hls.js code verbatim (`"fragLoadError"`, `"manifestLoadError"`, …) |
+| `status` | `number \| undefined` | HTTP status of the failed response — `403` means an expired signature |
+| `url` | `string \| undefined` | the URL that failed to load |
+| `time` | `number` | position in seconds at the moment of the failure |
+
+Native HLS and progressive sources have no hls.js diagnostics behind them, so
+they report `fatal`, `kind` and `time` only.
 
 ### Build your own bundle
 
@@ -534,6 +631,7 @@ Outputs to `dist/`:
 | `onVoiceoverChange` | `(value: string) => void` | Voiceover change callback |
 | `savedState` | `PlaybackState \| null` | External playback state to restore |
 | `onSaveState` | `(state: PlaybackState) => void` | Callback when state is saved |
+| `onPlaybackError` | `(error: PlaybackErrorDetail) => void` | Callback on playback failure, recovered ones included |
 | `fragments` | `Fragment[]` | Fragment segments (opening, ending, etc.) |
 | `fragmentSettings` | `Partial<FragmentSettings>` | Default auto-skip config per fragment type |
 | `locale` | `Locale` | UI language — `"en"` (default), `"ru"`, or any registered tag |
@@ -558,6 +656,9 @@ Outputs to `dist/`:
 | `SubtitleSettingsView` | Subtitle settings view key |
 | `SettingsView` | Settings menu view key |
 | `PlaybackState` | Saved playback position and context |
+| `PlaybackErrorDetail` | Playback failure payload (`playbackerror` / `onPlaybackError`) |
+| `PlaybackErrorKind` | Failure category union string |
+| `ReloadOptions` | Options for `EvadePlayerElement.reload()` |
 | `PlayerSettings` | Persistent player preferences |
 | `Fragment` | Fragment segment (opening, ending, etc.) |
 | `FragmentType` | Fragment type union string |

@@ -46,11 +46,19 @@ import {Button} from './components/button';
 import {VolumePopover} from './components/volume-popover';
 import {SettingsMenu} from './components/settings-menu';
 import {VolumeProcessor} from './components/volume-processor';
-import type {Fragment, FragmentSettings, PlaybackState, QualityOption, SeasonOption} from './types';
+import type {
+    Fragment,
+    FragmentSettings,
+    PlaybackErrorDetail,
+    PlaybackState,
+    QualityOption,
+    SeasonOption
+} from './types';
 import {isHlsSource, isRenderProp, isString} from './utils';
 import {Player} from './player';
 import {ContentSelector} from './components/content-selector';
 import {PlaybackStateManager} from './components/playback-state-manager';
+import {PlaybackErrorReporter} from './components/playback-error-reporter';
 import {NextEpisodePrompt} from './components/next-episode-prompt';
 import {FragmentMarkers, SkipFragmentButton} from './components/fragment-controls';
 import {FragmentSettingsProvider} from './components/fragment-settings-context';
@@ -196,6 +204,12 @@ export interface VideoPlayerProps {
     savedState?: PlaybackState | null;
     /** Called when the player wants to persist playback state. */
     onSaveState?: (state: PlaybackState) => void;
+    /**
+     * Called when playback fails. Fires for recovered errors too — check
+     * `fatal` before reacting. A `status` of `401`/`403` on a fatal error is
+     * the signal to fetch a fresh signed source and swap `src`.
+     */
+    onPlaybackError?: (error: PlaybackErrorDetail) => void;
     /** Fragment segments (opening, ending, preview, compilation) to mark on the timeline. */
     fragments?: Fragment[];
     /** Default auto-skip settings for fragment types. */
@@ -289,6 +303,7 @@ export function VideoPlayer({
     onVoiceoverChange,
     savedState,
     onSaveState,
+    onPlaybackError,
     fragments,
     fragmentSettings: fragmentSettingsProp,
     locale,
@@ -387,6 +402,8 @@ export function VideoPlayer({
                 />
 
                 <LocalizedErrorDialog errorDescription={errorDescription}/>
+
+                <PlaybackErrorReporter onPlaybackError={onPlaybackError}/>
 
                 <ContentSelector
                     seasons={seasons}

@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import './web-component';
 
 function createPlayer(attributes: Record<string, string> = {}): HTMLElement {
@@ -111,5 +111,134 @@ describe('<evade-player> media event forwarding', () => {
         el.remove();
         media.dispatchEvent(new Event('play'));
         expect(count).toBe(1);
+    });
+});
+
+interface FakeVideo extends HTMLVideoElement {
+    seekedTo: number | null;
+}
+
+/**
+ * jsdom leaves `currentTime` and `play()` unimplemented, so the parts of the
+ * media element `reload()` touches are stubbed on the instance.
+ */
+function appendVideo(el: HTMLElement, {currentTime = 0, paused = true} = {}): FakeVideo {
+    const media = document.createElement('video') as FakeVideo;
+    media.seekedTo = null;
+    Object.defineProperty(media, 'currentTime', {
+        get: () => (media.seekedTo ?? currentTime),
+        set: (value: number) => { media.seekedTo = value; },
+        configurable: true,
+    });
+    Object.defineProperty(media, 'paused', {get: () => paused, configurable: true});
+    media.play = vi.fn().mockResolvedValue(undefined);
+    el.firstElementChild?.appendChild(media);
+    return media;
+}
+
+interface ReloadablePlayer extends HTMLElement {
+    reload(src: string, options?: {time?: number}): void;
+}
+
+const FRESH_SRC = 'https://cdn.example.com/master.m3u8?sig=fresh';
+
+describe('<evade-player> reload()', () => {
+    it('swaps the source without recreating the element', () => {
+        const el = createPlayer({src: 'https://cdn.example.com/master.m3u8?sig=stale'}) as ReloadablePlayer;
+        const mount = el.firstElementChild;
+        const media = appendVideo(el);
+
+        el.reload(FRESH_SRC, {time: 1841.2});
+
+        expect(el.getAttribute('src')).toBe(FRESH_SRC);
+        // Same mount, same media element: nothing was torn down and rebuilt.
+        expect(el.firstElementChild).toBe(mount);
+        expect(mount?.contains(media)).toBe(true);
+    });
+
+    it('restores the requested position once the new source reports metadata', () => {
+        const el = createPlayer({src: 'https://x/stale.m3u8'}) as ReloadablePlayer;
+        const media = appendVideo(el);
+
+        el.reload(FRESH_SRC, {time: 1841.2});
+        expect(media.seekedTo).toBeNull();
+
+        media.dispatchEvent(new Event('loadedmetadata'));
+        expect(media.seekedTo).toBe(1841.2);
+    });
+
+    it('falls back to the position at the time of the call', () => {
+        const el = createPlayer({src: 'https://x/stale.m3u8'}) as ReloadablePlayer;
+        const media = appendVideo(el, {currentTime: 42});
+
+        el.reload(FRESH_SRC);
+        media.dispatchEvent(new Event('loadedmetadata'));
+
+        expect(media.seekedTo).toBe(42);
+    });
+
+    it('resumes playback when the player was not paused', () => {
+        const el = createPlayer({src: 'https://x/stale.m3u8'}) as ReloadablePlayer;
+        const media = appendVideo(el, {currentTime: 10, paused: false});
+
+        el.reload(FRESH_SRC);
+        media.dispatchEvent(new Event('loadedmetadata'));
+
+        expect(media.play).not.toHaveBeenCalled();
+    });
+
+    it('starts playback when the source loads back paused', () => {
+        const el = createPlayer({src: 'https://x/stale.m3u8'}) as ReloadablePlayer;
+        const media = appendVideo(el, {currentTime: 10, paused: false});
+
+        el.reload(FRESH_SRC);
+        Object.defineProperty(media, 'paused', {get: () => true, configurable: true});
+        media.dispatchEvent(new Event('loadedmetadata'));
+
+        expect(media.play).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a paused player paused', () => {
+        const el = createPlayer({src: 'https://x/stale.m3u8'}) as ReloadablePlayer;
+        const media = appendVideo(el, {currentTime: 10, paused: true});
+
+        el.reload(FRESH_SRC);
+        media.dispatchEvent(new Event('loadedmetadata'));
+
+        expect(media.seekedTo).toBe(10);
+        expect(media.play).not.toHaveBeenCalled();
+    });
+
+    it('seeks only once', () => {
+        const el = createPlayer({src: 'https://x/stale.m3u8'}) as ReloadablePlayer;
+        const media = appendVideo(el);
+
+        el.reload(FRESH_SRC, {time: 100});
+        media.dispatchEvent(new Event('loadedmetadata'));
+        media.seekedTo = null;
+        media.dispatchEvent(new Event('loadedmetadata'));
+
+        expect(media.seekedTo).toBeNull();
+    });
+
+    it('ignores a negative or non-finite time and uses the current position', () => {
+        const el = createPlayer({src: 'https://x/stale.m3u8'}) as ReloadablePlayer;
+        const media = appendVideo(el, {currentTime: 7});
+
+        el.reload(FRESH_SRC, {time: Number.NaN});
+        media.dispatchEvent(new Event('loadedmetadata'));
+
+        expect(media.seekedTo).toBe(7);
+    });
+
+    it('stops waiting for the new source after disconnect', () => {
+        const el = createPlayer({src: 'https://x/stale.m3u8'}) as ReloadablePlayer;
+        const media = appendVideo(el);
+
+        el.reload(FRESH_SRC, {time: 100});
+        el.remove();
+        media.dispatchEvent(new Event('loadedmetadata'));
+
+        expect(media.seekedTo).toBeNull();
     });
 });

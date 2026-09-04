@@ -2,6 +2,8 @@
 import './web-component';
 
 export {EvadePlayerElement} from './web-component';
+export type {ReloadOptions} from './web-component';
+export type {PlaybackErrorDetail, PlaybackErrorKind} from './skins/default/types';
 
 // Locale API, so script-tag consumers can add or override a language without
 // a bundler. In the IIFE build these hang off the `EvadePlayer` global.
