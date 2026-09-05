@@ -4,7 +4,7 @@ All notable changes are documented here. Add your entry to **[Unreleased]** in
 the same pull request as the change; releasing renames that heading to the new
 version. See [CONTRIBUTING.md](CONTRIBUTING.md#releasing).
 
-## [Unreleased]
+## [0.2.2] - 2026-09-05
 
 ### Added
 - `playbackerror` event (`onPlaybackError` in React) reporting playback failures with `fatal`, `kind`, `details`, `status`, `url`, and `time` — the HTTP status distinguishes an expired signed manifest (`403`) from a dropped network or a missing file
