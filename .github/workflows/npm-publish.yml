@@ -15,16 +15,35 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # Required for npm provenance. Drop this along with the --provenance flag
-      # below if the package is ever published from a private repository.
+      # Required for npm trusted publishing (OIDC). npm exchanges this token
+      # for a short-lived publish credential, so there is no NPM_TOKEN secret,
+      # and provenance is attached automatically.
       id-token: write
     steps:
       - uses: actions/checkout@v6
+
+      # The release event checks out the tag, not `main`. If the tag was cut
+      # before the version bump landed, `npm publish` would fail deep into the
+      # job with "cannot publish over the previously published versions".
+      # Fail here instead, with the two versions named.
+      - name: Verify package.json matches the release tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::Release tag $tag does not match package.json $pkg. Move the tag to the commit that bumps the version."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
           registry-url: https://registry.npmjs.org/
+      # Trusted publishing needs npm >= 11.5.1; Node 24 does not ship a new
+      # enough npm on every release line.
+      - run: npm install -g npm@latest
+
       - run: npm ci
 
       # A release must not ship code that would fail CI. `prepublishOnly` only
@@ -34,6 +53,6 @@ jobs:
       - run: npm test
 
       # `prepublishOnly` runs build:all, so the artifacts are built here.
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      # No NODE_AUTH_TOKEN: authentication comes from the OIDC token above,
+      # which also makes `--provenance` implicit.
+      - run: npm publish --access public
